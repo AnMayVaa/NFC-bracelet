@@ -32,8 +32,8 @@
 #include <Adafruit_PN532.h>
 
 // --- Wi-Fi Configuration ---
-const char* ssid     = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid     = "BUNDAOBUNTAI";
+const char* password = "ohm12345";
 
 // --- Server Configuration ---
 // Live Vercel Production Domain:

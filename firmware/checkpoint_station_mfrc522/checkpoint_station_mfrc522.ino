@@ -43,8 +43,8 @@
 #define STATION_NAME "1. Seongsan Sunrise Peak"
 
 // --- Wi-Fi Configuration ---
-const char* ssid     = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid     = "BUNDAOBUNTAI";
+const char* password = "ohm12345";
 
 // --- Server Configuration ---
 // Live Vercel Production Domain:
