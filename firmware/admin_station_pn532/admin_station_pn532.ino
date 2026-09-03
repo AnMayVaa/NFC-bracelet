@@ -36,9 +36,8 @@ const char* ssid     = "YOUR_WIFI_SSID";
 const char* password = "YOUR_WIFI_PASSWORD";
 
 // --- Server Configuration ---
-// If running server.js locally on your laptop, use your laptop's Local IP
-// Example: "http://192.168.1.50:3000"
-const char* serverBaseUrl = "http://192.168.1.50:3000";
+// Live Vercel Production Domain:
+const char* serverBaseUrl = "https://smart-nfc-bracelet.vercel.app";
 
 // --- PN532 I2C Setup ---
 #define SDA_PIN 21
