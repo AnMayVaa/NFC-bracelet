@@ -1,0 +1,101 @@
+{
+  "BEAD_001": {
+    "uid": "BEAD_001",
+    "name": "Alex Min-woo",
+    "country": "South Korea",
+    "language": "Korean",
+    "dietary": "No Shellfish",
+    "emergencyContact": "+82 10-1234-5678",
+    "depositPaid": true,
+    "stamps": {
+      "checkpoint1": true,
+      "checkpoint2": true
+    },
+    "voucher": {
+      "unlocked": true,
+      "code": "JEJU-4000-BEAD001",
+      "redeemed": true,
+      "redeemedAt": "2026-09-03T13:59:24.366Z"
+    },
+    "lastCheckin": {
+      "station": "checkpoint2",
+      "timestamp": "2026-09-03T13:59:21.811Z"
+    }
+  },
+  "BEAD_002": {
+    "uid": "BEAD_002",
+    "name": "Sarah Chen",
+    "country": "Singapore",
+    "language": "English",
+    "dietary": "Halal",
+    "emergencyContact": "+65 9123-4567",
+    "depositPaid": true,
+    "stamps": {
+      "checkpoint1": false,
+      "checkpoint2": false
+    },
+    "voucher": {
+      "unlocked": false,
+      "code": "JEJU-4000-BEAD002",
+      "redeemed": false
+    },
+    "lastCheckin": null
+  },
+  "BEAD_003": {
+    "uid": "BEAD_003",
+    "name": "Kenji Sato",
+    "country": "Japan",
+    "language": "Japanese",
+    "dietary": "Vegetarian",
+    "emergencyContact": "+81 90-1234-5678",
+    "depositPaid": true,
+    "stamps": {
+      "checkpoint1": false,
+      "checkpoint2": false
+    },
+    "voucher": {
+      "unlocked": false,
+      "code": "JEJU-4000-BEAD003",
+      "redeemed": false
+    },
+    "lastCheckin": null
+  },
+  "BEAD_004": {
+    "uid": "BEAD_004",
+    "name": "Emma Watson",
+    "country": "UK",
+    "language": "English",
+    "dietary": "Gluten-Free",
+    "emergencyContact": "+44 7700-900123",
+    "depositPaid": true,
+    "stamps": {
+      "checkpoint1": false,
+      "checkpoint2": false
+    },
+    "voucher": {
+      "unlocked": false,
+      "code": "JEJU-4000-BEAD004",
+      "redeemed": false
+    },
+    "lastCheckin": null
+  },
+  "BEAD_005": {
+    "uid": "BEAD_005",
+    "name": "Conference Judge",
+    "country": "International",
+    "language": "English",
+    "dietary": "None",
+    "emergencyContact": "+1 555-0199",
+    "depositPaid": true,
+    "stamps": {
+      "checkpoint1": false,
+      "checkpoint2": false
+    },
+    "voucher": {
+      "unlocked": false,
+      "code": "JEJU-4000-JUDGE",
+      "redeemed": false
+    },
+    "lastCheckin": null
+  }
+}

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Jeju AuraBeads — Tourist Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="mobile-container">
+    
+    <!-- Top Bar -->
+    <header class="brand-header">
+      <div class="brand-title">
+        <span style="font-size: 1.5rem;">🌋</span>
+        <div>
+          <h1>Jeju AuraBeads</h1>
+          <div class="live-status">
+            <span class="pulse-dot"></span>
+            <span id="wsStatusText">Live Synced</span>
+          </div>
+        </div>
+      </div>
+      <div class="tag-badge" id="displayTagUid">UID: BEAD_001</div>
+    </header>
+
+    <!-- Passive UV Photochromic Bead Simulation -->
+    <div class="card uv-banner">
+      <div class="bead-preview" id="beadPreview"></div>
+      <div class="uv-info">
+        <h4 id="uvStatusTitle">UV Sensor Bead: Passive Safe</h4>
+        <p id="uvStatusDesc">Bead is pearl-white in shade. Expose to seaside sun to see Hallabong tangerine transition.</p>
+      </div>
+    </div>
+
+    <!-- Tourist Profile (Editable on Phone) -->
+    <div class="card profile-card">
+      <div class="profile-header">
+        <div class="profile-user-info">
+          <h2 id="touristName">Loading...</h2>
+          <div class="profile-sub" id="touristCountry">South Korea • Korean</div>
+        </div>
+        <button class="btn-edit" id="btnOpenEditModal">✏️ Edit</button>
+      </div>
+
+      <div class="profile-chips">
+        <div class="chip">
+          <span class="chip-label">Dietary:</span>
+          <span class="chip-val" id="touristDietary">No Shellfish</span>
+        </div>
+        <div class="chip">
+          <span class="chip-label">SOS:</span>
+          <span class="chip-val" id="touristEmergency">+82 10-1234-5678</span>
+        </div>
+        <div class="chip">
+          <span class="chip-label">Deposit:</span>
+          <span class="chip-val" style="color: var(--color-green);">10,000₩ (Active)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Hyper-Local Recommendation -->
+    <div class="card" style="background: linear-gradient(135deg, #1C242A 0%, #151B20 100%); border-color: rgba(6, 182, 212, 0.3);">
+      <div style="display: flex; gap: 10px; align-items: flex-start;">
+        <span style="font-size: 1.4rem;">🤖</span>
+        <div>
+          <div style="font-size: 0.72rem; font-weight: 700; color: var(--color-haenyeo-teal); text-transform: uppercase;">
+            Jeju AI Eco-Advisor
+          </div>
+          <div style="font-size: 0.8rem; color: #E5E7EB; margin-top: 3px; line-height: 1.35;" id="aiRecommendation">
+            "Maritime breeze dropping to 18°C along Olle Route 7. If feeling chilly, stop by Dongmun Market for warm Haenyeo Mom-guk!"
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Olle Trail Digital Passport (Dol Hareubang Stamps) -->
+    <div class="card passport-section">
+      <h3>
+        <span>🗿</span> Olle Trail Digital Passport
+      </h3>
+      <div class="passport-subtitle">
+        Tap your volcanic basalt bracelet at physical ESP32 trail stations:
+      </div>
+
+      <div class="stamps-grid">
+        <!-- Checkpoint 1 -->
+        <div class="stamp-box" id="stampBox1">
+          <div class="stamp-icon-wrapper">
+            <span class="stamp-stone-avatar">🗿</span>
+          </div>
+          <div class="stamp-title">1. Seongsan Sunrise Peak</div>
+          <div class="stamp-status" id="stampStatus1">Not Visited</div>
+        </div>
+
+        <!-- Checkpoint 2 -->
+        <div class="stamp-box" id="stampBox2">
+          <div class="stamp-icon-wrapper">
+            <span class="stamp-stone-avatar">🍊</span>
+          </div>
+          <div class="stamp-title">2. Dongmun Market</div>
+          <div class="stamp-status" id="stampStatus2">Not Visited</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Green Market Reward Voucher -->
+    <div class="card voucher-card" id="voucherCard">
+      <span class="voucher-badge" id="voucherBadge">Locked</span>
+      <div class="voucher-amount">
+        4,000 <span>KRW</span> Voucher
+      </div>
+      <div class="voucher-desc" id="voucherDesc">
+        Complete both Olle checkpoints with your AuraBeads to unlock a 4,000 won coupon at Dongmun Traditional Market!
+      </div>
+      <div class="voucher-code-box" id="voucherCodeBox">
+        •••• - •••• - ••••
+      </div>
+      <button class="btn-redeem" id="btnRedeem" disabled>Redeem at Dongmun Market</button>
+    </div>
+
+    <!-- Testing & Hardware Simulator Toolbar -->
+    <div class="simulator-bar">
+      <div class="simulator-title">
+        <span>⚡</span> Hardware Prototype Simulator (Test Without Wiring)
+      </div>
+      <div class="sim-buttons">
+        <button class="btn-sim" id="btnSimCP1">📍 Tap Checkpoint 1 (ESP32)</button>
+        <button class="btn-sim" id="btnSimCP2">📍 Tap Checkpoint 2 (ESP32)</button>
+        <button class="btn-sim" id="btnSimUV">☀️ Toggle Sun / UV Bead</button>
+        <button class="btn-sim" id="btnSwitchTag">🔄 Switch Tag UID</button>
+        <button class="btn-sim btn-sim-reset" id="btnSimReset">⚠️ Reset Demo State</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Modal: Edit Profile on Phone -->
+  <div class="modal-backdrop" id="editModal">
+    <div class="modal-content">
+      <h3><span>✏️</span> Edit Tourist Profile</h3>
+      <p style="font-size: 0.78rem; color: var(--text-muted);">
+        Update your personal preferences directly on your smartphone.
+      </p>
+
+      <div class="form-group">
+        <label for="inputName">Full Name</label>
+        <input type="text" id="inputName" placeholder="e.g. Min-woo Kim">
+      </div>
+
+      <div class="form-group">
+        <label for="inputCountry">Home Country / Region</label>
+        <input type="text" id="inputCountry" placeholder="e.g. South Korea">
+      </div>
+
+      <div class="form-group">
+        <label for="selectLanguage">Preferred Language</label>
+        <select id="selectLanguage">
+          <option value="English">English</option>
+          <option value="Korean">한국어 (Korean)</option>
+          <option value="Chinese">中文 (Chinese)</option>
+          <option value="Japanese">日本語 (Japanese)</option>
+          <option value="Thai">ไทย (Thai)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="inputDietary">Dietary Restrictions / Allergies</label>
+        <input type="text" id="inputDietary" placeholder="e.g. Halal, Vegan, Shellfish Allergy">
+      </div>
+
+      <div class="form-group">
+        <label for="inputEmergency">Emergency Contact Number</label>
+        <input type="tel" id="inputEmergency" placeholder="+82 10-0000-0000">
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" id="btnCancelEdit">Cancel</button>
+        <button class="btn-primary" id="btnSaveEdit">Save to Cloud</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jeju AuraBeads — Admin Station & Monitoring</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .admin-grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 20px;
+      width: 100%;
+    }
+    @media (max-width: 820px) {
+      .admin-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .table-container {
+      overflow-x: auto;
+      margin-top: 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 0.5px;
+    }
+    .badge-stamp {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .badge-yes {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34D399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .badge-no {
+      background: rgba(107, 114, 128, 0.2);
+      color: #9CA3AF;
+      border: 1px solid rgba(107, 114, 128, 0.3);
+    }
+    .log-box {
+      background: #000;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      height: 160px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 0.78rem;
+      overflow-y: auto;
+      color: #10B981;
+      display: flex;
+      flex-direction: column-reverse;
+    }
+    .log-item {
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="brand-header" style="margin-bottom: 20px;">
+    <div class="brand-title">
+      <span style="font-size: 2rem;">🌋</span>
+      <div>
+        <h1 style="font-size: 1.6rem;">Jeju AuraBeads — Admin Center</h1>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">
+          Airport Tourist Onboarding & Live Olle Trail Station Monitor
+        </div>
+      </div>
+    </div>
+    <div>
+      <a href="/" target="_blank" class="btn-edit" style="text-decoration: none;">📱 Open Mobile Dashboard ↗</a>
+    </div>
+  </header>
+
+  <div class="admin-grid">
+
+    <!-- Left Column: Registration & Tag Provisioning -->
+    <div class="card">
+      <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+        <span>🏷️</span> Bracelet Registration (Airport Desk)
+      </h3>
+      <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 16px;">
+        Tap tag on <b>Admin Station (ESP32 + PN532)</b> or type UID manually to register traveler.
+      </p>
+
+      <form id="formRegister" style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="form-group">
+          <label>NFC Bracelet UID</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="adminUid" placeholder="e.g. BEAD_001 or 04A1B2C3" required style="font-family: monospace; font-weight: 700; color: var(--color-tangerine);">
+            <button type="button" class="btn-edit" id="btnSelectDefault" style="white-space: nowrap;">Pick Demo</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Traveler Name</label>
+          <input type="text" id="adminName" placeholder="e.g. Min-woo Kim" required>
+        </div>
+
+        <div class="form-group">
+          <label>Nationality / Country</label>
+          <input type="text" id="adminCountry" placeholder="e.g. South Korea, Thailand, USA" required>
+        </div>
+
+        <div class="form-group">
+          <label>Language Preference</label>
+          <select id="adminLanguage">
+            <option value="Korean">Korean (한국어)</option>
+            <option value="English" selected>English</option>
+            <option value="Chinese">Chinese (中文)</option>
+            <option value="Japanese">Japanese (日本語)</option>
+            <option value="Thai">Thai (ไทย)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Dietary Restrictions / Allergies (For Local SMEs)</label>
+          <input type="text" id="adminDietary" placeholder="e.g. Halal, Vegan, Shellfish Allergy">
+        </div>
+
+        <div class="form-group">
+          <label>Emergency Contact (SOS)</label>
+          <input type="tel" id="adminEmergency" placeholder="+82 10-1234-5678">
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0;">
+          <input type="checkbox" id="adminDeposit" checked style="width: 18px; height: 18px; accent-color: var(--color-tangerine);">
+          <label for="adminDeposit" style="font-size: 0.8rem; color: #FFF; cursor: pointer;">
+            10,000 KRW Circular Deposit Paid (Refundable on return)
+          </label>
+        </div>
+
+        <button type="submit" class="btn-primary" style="padding: 12px; margin-top: 8px;">
+          🚀 Register & Issue AuraBeads Bracelet
+        </button>
+      </form>
+    </div>
+
+    <!-- Right Column: Live Trail Monitor & Tag Inventory -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      
+      <!-- Live Status Table -->
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3><span>📊</span> Live AuraBeads Inventory (5 Demo Tags)</h3>
+          <button class="btn-edit" id="btnRefreshList" style="font-size: 0.75rem;">🔄 Refresh</button>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>UID</th>
+                <th>Tourist</th>
+                <th>Dietary</th>
+                <th>CP1 (Olle 1)</th>
+                <th>CP2 (Market)</th>
+                <th>Voucher</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="touristTableBody">
+              <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Loading bracelets...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Real-Time Hardware Event Log -->
+      <div class="card">
+        <h4 style="font-size: 0.85rem; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+          <span>📡</span> Live Station Hardware Events (ESP32 Stream)
+        </h4>
+        <div class="log-box" id="adminLogBox">
+          <div class="log-item">System ready. Awaiting hardware scans...</div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const touristTableBody = document.getElementById('touristTableBody');
+    const formRegister = document.getElementById('formRegister');
+    const adminUid = document.getElementById('adminUid');
+    const adminName = document.getElementById('adminName');
+    const adminCountry = document.getElementById('adminCountry');
+    const adminLanguage = document.getElementById('adminLanguage');
+    const adminDietary = document.getElementById('adminDietary');
+    const adminEmergency = document.getElementById('adminEmergency');
+    const adminDeposit = document.getElementById('adminDeposit');
+    const adminLogBox = document.getElementById('adminLogBox');
+    const btnSelectDefault = document.getElementById('btnSelectDefault');
+    const btnRefreshList = document.getElementById('btnRefreshList');
+
+    function logEvent(text) {
+      const div = document.createElement('div');
+      div.className = 'log-item';
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+      adminLogBox.prepend(div);
+    }
+
+    async function loadTourists() {
+      try {
+        const res = await fetch('/api/tourists');
+        const list = await res.json();
+        renderTable(list);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderTable(list) {
+      touristTableBody.innerHTML = '';
+      list.forEach(t => {
+        const tr = document.createElement('tr');
+
+        const cp1Badge = t.stamps.checkpoint1 ? '<span class="badge-stamp badge-yes">✅ Stamped</span>' : '<span class="badge-stamp badge-no">Pending</span>';
+        const cp2Badge = t.stamps.checkpoint2 ? '<span class="badge-stamp badge-yes">✅ Stamped</span>' : '<span class="badge-stamp badge-no">Pending</span>';
+        
+        let voucherBadge = '<span class="badge-stamp badge-no">Locked</span>';
+        if (t.voucher.redeemed) {
+          voucherBadge = '<span class="badge-stamp badge-no" style="background:#374151;color:#D1D5DB;">Redeemed</span>';
+        } else if (t.voucher.unlocked) {
+          voucherBadge = '<span class="badge-stamp badge-yes" style="background:rgba(255,122,0,0.2);color:#FF7A00;border-color:#FF7A00;">🎁 Unlocked</span>';
+        }
+
+        tr.innerHTML = `
+          <td style="font-family: monospace; font-weight: bold; color: var(--color-tangerine);">${t.uid}</td>
+          <td><b>${t.name}</b><br><span style="color:var(--text-muted);font-size:0.75rem;">${t.country} (${t.language})</span></td>
+          <td style="font-size:0.78rem;">${t.dietary || 'None'}</td>
+          <td>${cp1Badge}</td>
+          <td>${cp2Badge}</td>
+          <td>${voucherBadge}</td>
+          <td>
+            <a href="/?uid=${encodeURIComponent(t.uid)}" target="_blank" style="color:var(--color-haenyeo-teal);font-size:0.78rem;text-decoration:none;font-weight:600;">Open Phone View ↗</a>
+          </td>
+        `;
+        touristTableBody.appendChild(tr);
+      });
+    }
+
+    // Quick tag selector
+    btnSelectDefault.addEventListener('click', () => {
+      const pick = prompt('Select Demo Tag (BEAD_001, BEAD_002, BEAD_003, BEAD_004, BEAD_005):', 'BEAD_001');
+      if (pick) {
+        adminUid.value = pick.trim().toUpperCase();
+        // Load details if already present
+        fetch(`/api/tourist/${adminUid.value}`).then(r => r.json()).then(t => {
+          if (t && t.name) {
+            adminName.value = t.name;
+            adminCountry.value = t.country;
+            adminLanguage.value = t.language;
+            adminDietary.value = t.dietary;
+            adminEmergency.value = t.emergencyContact;
+          }
+        });
+      }
+    });
+
+    // Handle Form Registration
+    formRegister.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        uid: adminUid.value.trim().toUpperCase(),
+        name: adminName.value.trim(),
+        country: adminCountry.value.trim(),
+        language: adminLanguage.value,
+        dietary: adminDietary.value.trim(),
+        emergencyContact: adminEmergency.value.trim(),
+        depositPaid: adminDeposit.checked
+      };
+
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          logEvent(`Registered tourist ${data.tourist.name} (${data.tourist.uid})`);
+          alert(`✅ Successfully registered ${data.tourist.name} to bracelet ${data.tourist.uid}!`);
+          loadTourists();
+        }
+      } catch (err) {
+        alert('Error registering: ' + err.message);
+      }
+    });
+
+    btnRefreshList.addEventListener('click', loadTourists);
+
+    // WebSocket & Polling Setup for live monitoring
+    function setupAdminWS() {
+      const isVercel = window.location.hostname.includes('vercel.app');
+
+      // Auto-poll every 2 seconds on Vercel or as background refresher
+      setInterval(loadTourists, 2000);
+
+      if (isVercel) {
+        logEvent('Running on Vercel Cloud: Live 2s Auto-Polling active.');
+        return;
+      }
+
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}`);
+
+        ws.onopen = () => logEvent('Connected to Jeju Live Hardware Stream.');
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.event === 'CHECKIN_EVENT') {
+              logEvent(`📍 CHECK-IN: Tag [${msg.payload.uid}] stamped at [${msg.payload.station.toUpperCase()}]`);
+              loadTourists();
+            } else if (msg.event === 'ADMIN_TAG_SCANNED') {
+              logEvent(`🔍 PN532 ADMIN SCAN: Tag [${msg.payload.uid}] placed on Admin reader!`);
+              adminUid.value = msg.payload.uid;
+              loadTourists();
+            } else if (msg.event === 'PROFILE_UPDATED') {
+              logEvent(`✏️ PROFILE SYNC: Tag [${msg.payload.uid}] updated profile on phone.`);
+              loadTourists();
+            } else if (msg.event === 'VOUCHER_REDEEMED') {
+              logEvent(`🎁 VOUCHER REDEEMED: Tag [${msg.payload.uid}] claimed 4,000 KRW voucher!`);
+              loadTourists();
+            } else if (msg.event === 'RESET_EVENT') {
+              logEvent(`⚠️ RESET EVENT triggered.`);
+              loadTourists();
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
+        ws.onclose = () => setTimeout(setupAdminWS, 4000);
+      } catch (e) {
+        logEvent('WebSocket unavailable, using cloud polling.');
+      }
+    }
+
+    loadTourists();
+    setupAdminWS();
+  </script>
+</body>
+</html>
