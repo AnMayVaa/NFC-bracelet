@@ -134,6 +134,8 @@ void loop() {
   delay(100);
 }
 
+#include <WiFiClientSecure.h>
+
 void sendAdminScanToServer(String uid) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("⚠️ Cannot send: Wi-Fi disconnected");
@@ -143,7 +145,14 @@ void sendAdminScanToServer(String uid) {
   HTTPClient http;
   String url = String(serverBaseUrl) + "/api/admin/scan";
 
-  http.begin(url);
+  WiFiClientSecure secureClient;
+  if (url.startsWith("https://")) {
+    secureClient.setInsecure(); // Allows HTTPS requests to Vercel without loading CA bundle
+    http.begin(secureClient, url);
+  } else {
+    http.begin(url);
+  }
+
   http.addHeader("Content-Type", "application/json");
 
   String jsonPayload = "{\"uid\":\"" + uid + "\"}";

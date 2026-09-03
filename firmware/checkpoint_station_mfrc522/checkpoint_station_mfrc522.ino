@@ -166,6 +166,8 @@ void loop() {
   delay(100);
 }
 
+#include <WiFiClientSecure.h>
+
 bool sendCheckinToServer(String uid) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("❌ Wi-Fi disconnected. Cannot send checkin.");
@@ -175,7 +177,14 @@ bool sendCheckinToServer(String uid) {
   HTTPClient http;
   String url = String(serverBaseUrl) + "/api/checkin";
 
-  http.begin(url);
+  WiFiClientSecure secureClient;
+  if (url.startsWith("https://")) {
+    secureClient.setInsecure(); // Allows HTTPS requests to Vercel without loading CA bundle
+    http.begin(secureClient, url);
+  } else {
+    http.begin(url);
+  }
+
   http.addHeader("Content-Type", "application/json");
 
   String jsonPayload = "{\"uid\":\"" + uid + "\",\"station\":\"" + String(STATION_ID) + "\"}";
