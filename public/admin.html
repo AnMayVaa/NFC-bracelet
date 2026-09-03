@@ -225,14 +225,40 @@
       adminLogBox.prepend(div);
     }
 
+    let lastHandledScanTimestamp = 0;
+
     async function loadTourists() {
       try {
-        const res = await fetch('/api/tourists');
-        const list = await res.json();
-        renderTable(list);
+        const res = await fetch('/api/admin/status');
+        if (res.ok) {
+          const data = await res.json();
+          renderTable(data.tourists || []);
+          if (data.events && data.events.length > 0) {
+            renderEvents(data.events);
+          }
+
+          // Auto-fill UID when tag is scanned on Admin PN532
+          if (data.lastScan && data.lastScan.timestamp > lastHandledScanTimestamp) {
+            lastHandledScanTimestamp = data.lastScan.timestamp;
+            adminUid.value = data.lastScan.uid;
+            logEvent(`🔍 PN532 SCAN: Tag [${data.lastScan.uid}] detected!`);
+            adminUid.style.border = '2px solid var(--color-tangerine)';
+            setTimeout(() => { adminUid.style.border = ''; }, 2000);
+          }
+        }
       } catch (e) {
         console.error(e);
       }
+    }
+
+    function renderEvents(events) {
+      adminLogBox.innerHTML = '';
+      events.slice(0, 15).forEach(ev => {
+        const div = document.createElement('div');
+        div.className = 'log-item';
+        div.textContent = `[${new Date(ev.timestamp).toLocaleTimeString()}] ${ev.text}`;
+        adminLogBox.appendChild(div);
+      });
     }
 
     function renderTable(list) {

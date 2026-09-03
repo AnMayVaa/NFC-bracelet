@@ -158,6 +158,28 @@ app.post('/api/register', (req, res) => {
   res.json({ success: true, tourist: currentDb[cleanUid] });
 });
 
+let adminState = {
+  lastScan: null,
+  events: [
+    { type: 'SYSTEM', text: 'System initialized and connected to cloud.', timestamp: new Date().toISOString() }
+  ]
+};
+
+function addEvent(type, text) {
+  adminState.events.unshift({ type, text, timestamp: new Date().toISOString() });
+  if (adminState.events.length > 30) adminState.events.pop();
+}
+
+// Get admin status, live event log, and tourist inventory
+app.get('/api/admin/status', (req, res) => {
+  const currentDb = getDatabase();
+  res.json({
+    lastScan: adminState.lastScan,
+    events: adminState.events,
+    tourists: Object.values(currentDb)
+  });
+});
+
 // Check-in event from ESP32 stations
 app.post('/api/checkin', (req, res) => {
   const { uid, station } = req.body;
@@ -197,6 +219,7 @@ app.post('/api/checkin', (req, res) => {
     }
 
     saveDatabase();
+    addEvent('CHECKIN', `Checkpoint [${station.toUpperCase()}]: Tag [${cleanUid}] stamped!`);
     console.log(`📍 [CHECKIN] Tag ${cleanUid} checked in at ${station}`);
     return res.json({ success: true, message: `Checked in at ${station}`, tourist });
   } else {
@@ -209,6 +232,9 @@ app.post('/api/admin/scan', (req, res) => {
   const { uid } = req.body;
   if (!uid) return res.status(400).json({ error: 'UID required' });
   const cleanUid = uid.toUpperCase().trim();
+  adminState.lastScan = { uid: cleanUid, timestamp: Date.now() };
+  addEvent('ADMIN_SCAN', `PN532 Admin: Tag [${cleanUid}] placed on reader!`);
+  console.log(`🔍 [ADMIN SCAN] Tag ${cleanUid} detected.`);
   res.json({ success: true, uid: cleanUid });
 });
 
