@@ -96,6 +96,53 @@ void setup() {
   Serial.println("\n👉 Ready! Hold an NFC tag (NTAG215) near the PN532 to scan...\n");
 }
 
+// Function to automatically burn the NDEF URL onto NTAG213/215/216 tags
+bool writeNdefUrlToNtag(String uidStr) {
+  // URL to burn: "https://smart-nfc-bracelet.vercel.app/<UID>"
+  String domainAndPath = "smart-nfc-bracelet.vercel.app/" + uidStr;
+  uint8_t urlLen = domainAndPath.length();
+  
+  // Format CC (Capability Container) at Page 3 for NTAG215
+  uint8_t cc[4] = { 0xE1, 0x10, 0x6D, 0x00 };
+  nfc.ntag2xx_WritePage(3, cc);
+
+  // Build NDEF Message Buffer:
+  // TLV: 0x03, [Len], 0xD1, 0x01, [PayloadLen], 0x55 ('U'), 0x04 (https://), [URL], 0xFE (Terminator)
+  uint8_t totalBytes = 8 + urlLen;
+  uint8_t buffer[128];
+  memset(buffer, 0, sizeof(buffer));
+
+  buffer[0] = 0x03;               // NDEF TLV
+  buffer[1] = 5 + urlLen;         // NDEF Message Length
+  buffer[2] = 0xD1;               // Record Header (MB/ME/SR/TNF=1)
+  buffer[3] = 0x01;               // Type Length = 1 ('U')
+  buffer[4] = 1 + urlLen;         // Payload Length = 1 + urlLen
+  buffer[5] = 0x55;               // Type = 'U' (URI)
+  buffer[6] = 0x04;               // Prefix = 0x04 ("https://")
+  
+  for (int i = 0; i < urlLen; i++) {
+    buffer[7 + i] = domainAndPath.charAt(i);
+  }
+  buffer[7 + urlLen] = 0xFE;       // Terminator TLV
+
+  uint8_t pagesCount = (totalBytes + 3) / 4;
+  bool allSuccess = true;
+
+  for (uint8_t p = 0; p < pagesCount; p++) {
+    uint8_t pageBuf[4];
+    for (int b = 0; b < 4; b++) {
+      int idx = p * 4 + b;
+      pageBuf[b] = (idx < totalBytes) ? buffer[idx] : 0x00;
+    }
+    if (!nfc.ntag2xx_WritePage(4 + p, pageBuf)) {
+      allSuccess = false;
+      break;
+    }
+  }
+
+  return allSuccess;
+}
+
 void loop() {
   uint8_t success;
   uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer for UID (up to 7 bytes)
@@ -105,7 +152,7 @@ void loop() {
   success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 150);
 
   if (success) {
-    // Format UID to uppercase HEX string (e.g., "04A1B2C3D4E5F6")
+    // Format UID to uppercase HEX string (e.g., "04DBCE42CA2A81")
     String uidStr = "";
     for (uint8_t i = 0; i < uidLength; i++) {
       if (uid[i] < 0x10) uidStr += "0";
@@ -118,15 +165,28 @@ void loop() {
       lastScannedUid = uidStr;
       lastScanTime = millis();
 
-      Serial.println("\n-------------------------------------------");
+      Serial.println("\n==============================================");
       Serial.print("🏷️  NFC TAG DETECTED! UID: ");
       Serial.println(uidStr);
       Serial.print("Tag Length: ");
       Serial.print(uidLength);
-      Serial.println(" bytes (NTAG215 = 7 bytes)");
+      Serial.println(" bytes");
 
-      // Send to Admin Server via HTTP
+      // 1. Auto-burn NDEF URL onto the tag for smartphone auto pop-up
+      if (uidLength == 7) {
+        Serial.print("✍️  Writing Phone Auto-Launch URL: https://smart-nfc-bracelet.vercel.app/");
+        Serial.println(uidStr);
+        if (writeNdefUrlToNtag(uidStr)) {
+          Serial.println("✅  SUCCESS! NDEF URL burned into NFC tag.");
+          Serial.println("📱  👉 Tap this tag on your iPhone or Android — it will pop up!");
+        } else {
+          Serial.println("⚠️  Could not write NDEF (tag may be locked or moved too fast).");
+        }
+      }
+
+      // 2. Send scan to Admin Web Center
       sendAdminScanToServer(uidStr);
+      Serial.println("==============================================");
     }
   }
 

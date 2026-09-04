@@ -2,6 +2,7 @@
   "version": 2,
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.js" },
-    { "source": "/admin", "destination": "/admin.html" }
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/([a-zA-Z0-9_-]+)", "destination": "/index.html" }
   ]
 }

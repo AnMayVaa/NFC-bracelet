@@ -1,6 +1,18 @@
-// Extract UID from URL query params (e.g. ?uid=BEAD_001) or default to BEAD_001
+// Extract UID from URL query params (e.g. ?uid=BEAD_001) or URL pathname (e.g. /04DBCE42CA2A81)
 const urlParams = new URLSearchParams(window.location.search);
-let currentUid = (urlParams.get('uid') || 'BEAD_001').toUpperCase();
+let currentUid = urlParams.get('uid');
+
+if (!currentUid) {
+  const pathSegment = window.location.pathname.replace(/^\/+|\/+$/g, '');
+  if (pathSegment && pathSegment !== 'index.html' && pathSegment !== 'admin.html' && pathSegment !== 'admin') {
+    currentUid = pathSegment;
+  }
+}
+
+if (!currentUid) {
+  currentUid = 'BEAD_001';
+}
+currentUid = currentUid.toUpperCase();
 
 let currentTourist = null;
 let isUvHigh = false;
