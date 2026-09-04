@@ -112,6 +112,19 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve index.html for direct UID paths (e.g. /04DBCE42CA2A81 or /BEAD_001)
+app.get('/:uid([a-zA-Z0-9_-]+)', (req, res, next) => {
+  const { uid } = req.params;
+  if (uid === 'api' || uid === 'admin' || uid === 'style.css' || uid === 'app.js' || uid === 'favicon.ico') {
+    return next();
+  }
+  const indexPath = path.join(__dirname, '..', 'public', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+  return res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+});
+
 // Get all tourists
 app.get('/api/tourists', (req, res) => {
   const currentDb = getDatabase();
