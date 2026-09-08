@@ -8,19 +8,15 @@
     "emergencyContact": "+82 10-1234-5678",
     "depositPaid": true,
     "stamps": {
-      "checkpoint1": true,
-      "checkpoint2": true
+      "checkpoint1": false,
+      "checkpoint2": false
     },
     "voucher": {
-      "unlocked": true,
+      "unlocked": false,
       "code": "JEJU-4000-BEAD001",
-      "redeemed": true,
-      "redeemedAt": "2026-09-03T13:59:24.366Z"
+      "redeemed": false
     },
-    "lastCheckin": {
-      "station": "checkpoint2",
-      "timestamp": "2026-09-03T13:59:21.811Z"
-    }
+    "lastCheckin": null
   },
   "BEAD_002": {
     "uid": "BEAD_002",
@@ -98,26 +94,6 @@
     },
     "lastCheckin": null
   },
-  "04AABBCCDDEEFF": {
-    "uid": "04AABBCCDDEEFF",
-    "name": "AuraBead Guest (04AABBCC...)",
-    "country": "Global Traveler",
-    "language": "English",
-    "dietary": "None",
-    "emergencyContact": "+82 10-0000-0000",
-    "depositPaid": true,
-    "stamps": {
-      "checkpoint1": false,
-      "checkpoint2": false
-    },
-    "voucher": {
-      "unlocked": false,
-      "code": "JEJU-4000-04AABBCC",
-      "redeemed": false
-    },
-    "lastCheckin": null,
-    "registeredAt": "2026-09-08T17:55:11.086Z"
-  },
   "04DBCE42CA2A81": {
     "uid": "04DBCE42CA2A81",
     "name": "AuraBead Master (04DBCE42CA2A81)",
@@ -133,6 +109,44 @@
     "voucher": {
       "unlocked": false,
       "code": "JEJU-4000-04DBCE42",
+      "redeemed": false
+    },
+    "lastCheckin": null
+  },
+  "FA1D2207": {
+    "uid": "FA1D2207",
+    "name": "Jeju Explorer (Blue Fob #1)",
+    "country": "South Korea",
+    "language": "Korean",
+    "dietary": "None",
+    "emergencyContact": "+82 10-1234-5678",
+    "depositPaid": true,
+    "stamps": {
+      "checkpoint1": false,
+      "checkpoint2": false
+    },
+    "voucher": {
+      "unlocked": false,
+      "code": "JEJU-4000-FA1D2207",
+      "redeemed": false
+    },
+    "lastCheckin": null
+  },
+  "2E720204": {
+    "uid": "2E720204",
+    "name": "Jeju Explorer (White Card #2)",
+    "country": "International",
+    "language": "English",
+    "dietary": "None",
+    "emergencyContact": "+1 555-0199",
+    "depositPaid": true,
+    "stamps": {
+      "checkpoint1": false,
+      "checkpoint2": false
+    },
+    "voucher": {
+      "unlocked": false,
+      "code": "JEJU-4000-2E720204",
       "redeemed": false
     },
     "lastCheckin": null

@@ -74,8 +74,19 @@ async function fetchTouristData() {
   try {
     const res = await fetch(`/api/tourist/${currentUid}`);
     if (res.ok) {
-      currentTourist = await res.json();
+      const updated = await res.json();
+      const hadCp1 = currentTourist?.stamps?.checkpoint1;
+      const hadCp2 = currentTourist?.stamps?.checkpoint2;
+      currentTourist = updated;
       renderUI();
+      if ((!hadCp1 && updated?.stamps?.checkpoint1) || (!hadCp2 && updated?.stamps?.checkpoint2)) {
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        if (updated?.stamps?.checkpoint1 && updated?.stamps?.checkpoint2) {
+          playChime('voucher');
+        } else {
+          playChime('stamp');
+        }
+      }
     } else {
       console.warn('Tag not found, creating new profile...');
       const registerRes = await fetch('/api/register', {
@@ -162,6 +173,49 @@ function renderUI() {
   }
 }
 
+// Web Audio Synthesizer Chime for Olle Trail Checkpoint stamps & rewards
+function playChime(type) {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    if (type === 'stamp') {
+      // 2-tone chime: D5 (587.33Hz) -> A5 (880Hz)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now);
+      osc.frequency.setValueAtTime(880, now + 0.12);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.4);
+    } else if (type === 'voucher') {
+      // 4-tone victory arpeggio: C5 -> E5 -> G5 -> C6
+      const notes = [523.25, 659.25, 783.99, 1046.50];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        const start = now + i * 0.1;
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.25, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.35);
+      });
+    }
+  } catch (e) {
+    console.warn('Audio playback error:', e);
+  }
+}
+
 // Dual Real-time Sync: WebSockets + Serverless Cloud Polling Fallback
 function setupSync() {
   const isVercel = window.location.hostname.includes('vercel.app');
@@ -186,9 +240,18 @@ function setupSync() {
       try {
         const data = JSON.parse(event.data);
         if (data.event === 'CHECKIN_EVENT' && data.payload.uid === currentUid) {
+          const hadCp1 = currentTourist?.stamps?.checkpoint1;
+          const hadCp2 = currentTourist?.stamps?.checkpoint2;
           currentTourist = data.payload.tourist;
           renderUI();
           if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+          if ((!hadCp1 && currentTourist?.stamps?.checkpoint1) || (!hadCp2 && currentTourist?.stamps?.checkpoint2)) {
+            if (currentTourist?.stamps?.checkpoint1 && currentTourist?.stamps?.checkpoint2) {
+              playChime('voucher');
+            } else {
+              playChime('stamp');
+            }
+          }
         } else if (data.event === 'PROFILE_UPDATED' && data.payload.uid === currentUid) {
           currentTourist = data.payload;
           renderUI();
@@ -232,6 +295,11 @@ function startPolling() {
           renderUI();
           if ((!hadCp1 && updated?.stamps?.checkpoint1) || (!hadCp2 && updated?.stamps?.checkpoint2)) {
             if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            if (updated?.stamps?.checkpoint1 && updated?.stamps?.checkpoint2) {
+              playChime('voucher');
+            } else {
+              playChime('stamp');
+            }
           }
         }
       }
@@ -378,6 +446,16 @@ function setupEventListeners() {
       });
       fetchTouristData();
     }
+  });
+
+  // Quick Tag Pills
+  document.querySelectorAll('.tag-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const uid = btn.getAttribute('data-uid');
+      if (uid && uid !== currentUid) {
+        window.location.href = `/?uid=${encodeURIComponent(uid)}`;
+      }
+    });
   });
 }
 

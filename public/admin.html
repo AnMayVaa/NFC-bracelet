@@ -77,21 +77,134 @@
       margin-bottom: 4px;
       line-height: 1.3;
     }
+    .btn-row-action {
+      background: var(--bg-card-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 4px 7px;
+      border-radius: 6px;
+      font-size: 0.70rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn-row-action:hover {
+      background: #374151;
+      border-color: var(--color-tangerine);
+    }
+    .btn-row-phone {
+      color: var(--color-haenyeo-teal);
+      border-color: rgba(6, 182, 212, 0.4);
+    }
+    .btn-row-phone:hover {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: var(--color-haenyeo-teal);
+    }
+    .btn-row-qr {
+      color: var(--color-gold);
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+    .btn-row-qr:hover {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: var(--color-gold);
+    }
+    .btn-row-cp {
+      color: #34D399;
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+    .btn-row-cp:hover {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: #34D399;
+    }
+    .btn-row-reset {
+      color: var(--color-gold);
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+    .btn-row-reset:hover {
+      background: rgba(245, 158, 11, 0.15);
+    }
+    .btn-row-del {
+      color: #F87171;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .btn-row-del:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: #EF4444;
+    }
+    .tag-quick-pill {
+      background: var(--bg-card-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      font-family: monospace;
+      color: var(--text-main);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    .tag-quick-pill:hover, .tag-quick-pill.active {
+      background: rgba(255, 122, 0, 0.18);
+      border-color: var(--color-tangerine);
+      color: var(--color-tangerine);
+      font-weight: 700;
+    }
+    .tag-quick-pill.primary-nfc {
+      border-color: rgba(255, 122, 0, 0.6);
+      color: var(--color-tangerine);
+    }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.open {
+      display: flex;
+    }
+    .modal-dialog {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 380px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      position: relative;
+    }
   </style>
 </head>
 <body>
 
-  <header class="brand-header" style="margin-bottom: 20px;">
+  <header class="brand-header" style="margin-bottom: 20px; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center;">
     <div class="brand-title">
       <span style="font-size: 2rem;">🌋</span>
       <div>
         <h1 style="font-size: 1.6rem;">Jeju AuraBeads — Admin Center</h1>
         <div style="font-size: 0.8rem; color: var(--text-muted);">
-          Airport Tourist Onboarding & Live Olle Trail Station Monitor
+          Airport Tourist Onboarding, NFC Testing Lab & Live Olle Trail Station Monitor
         </div>
       </div>
     </div>
-    <div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+      <button type="button" id="btnResetAllStamps" class="btn-edit" style="color: var(--color-gold); border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1);" title="Reset stamps and vouchers for all tourists (preserves profiles)">
+        🔄 Reset All Stamps
+      </button>
+      <button type="button" id="btnFactoryReset" class="btn-edit" style="color: #EF4444; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1);" title="Reset system back to default demo state">
+        ⚠️ Factory Reset
+      </button>
       <a href="/" target="_blank" class="btn-edit" style="text-decoration: none;">📱 Open Mobile Dashboard ↗</a>
     </div>
   </header>
@@ -103,16 +216,24 @@
       <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
         <span>🏷️</span> Bracelet Registration (Airport Desk)
       </h3>
-      <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 16px;">
-        Tap tag on <b>Admin Station (ESP32 + PN532)</b> or type UID manually to register traveler.
+      <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px;">
+        Tap tag on <b>Admin Station (ESP32 + PN532)</b> or pick below to register traveler.
       </p>
 
       <form id="formRegister" style="display: flex; flex-direction: column; gap: 12px;">
         <div class="form-group">
           <label>NFC Bracelet UID</label>
           <div style="display: flex; gap: 8px;">
-            <input type="text" id="adminUid" placeholder="e.g. BEAD_001 or 04A1B2C3" required style="font-family: monospace; font-weight: 700; color: var(--color-tangerine);">
-            <button type="button" class="btn-edit" id="btnSelectDefault" style="white-space: nowrap;">Pick Demo</button>
+            <input type="text" id="adminUid" placeholder="e.g. 04DBCE42CA2A81 or BEAD_001" required style="font-family: monospace; font-weight: 700; color: var(--color-tangerine);">
+            <button type="button" class="btn-edit" id="btnSelectDefault" style="white-space: nowrap;">Prompt</button>
+          </div>
+          <!-- Quick Fill Pills -->
+          <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; align-items: center;">
+            <span style="font-size: 0.70rem; color: var(--text-muted);">Quick Pick:</span>
+            <button type="button" class="tag-quick-pill primary-nfc btn-fill-uid" data-uid="04DBCE42CA2A81" title="Primary Physical NFC Sticker">🏷️ 04DBCE42CA2A81</button>
+            <button type="button" class="tag-quick-pill btn-fill-uid" data-uid="FA1D2207" title="Blue RFID Fob">🔵 FA1D2207</button>
+            <button type="button" class="tag-quick-pill btn-fill-uid" data-uid="2E720204" title="White RFID Card">⚪ 2E720204</button>
+            <button type="button" class="tag-quick-pill btn-fill-uid" data-uid="BEAD_001">BEAD_001</button>
           </div>
         </div>
 
@@ -154,7 +275,7 @@
           </label>
         </div>
 
-        <button type="submit" class="btn-primary" style="padding: 12px; margin-top: 8px;">
+        <button type="submit" class="btn-primary" style="padding: 12px; margin-top: 4px;">
           🚀 Register & Issue AuraBeads Bracelet
         </button>
       </form>
@@ -173,26 +294,72 @@
         </div>
 
         <div class="form-group">
-          <label style="color: var(--color-gold); font-size: 0.78rem;">✍️ Write Custom Content / URL to Tag:</label>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label style="color: var(--color-gold); font-size: 0.78rem; margin: 0;">✍️ Write URL / Content to Tag:</label>
+            <button type="button" id="btnFillPhoneUrl" class="btn-edit" style="font-size: 0.68rem; padding: 2px 6px;">⚡ Auto-fill URL</button>
+          </div>
           <div style="display: flex; gap: 6px;">
-            <input type="text" id="customWriteContent" placeholder="https://... or text message" style="font-size:0.8rem;">
+            <input type="text" id="customWriteContent" placeholder="https://smart-nfc-bracelet.vercel.app/..." style="font-size:0.8rem;">
             <button type="button" class="btn-edit" id="btnSaveWriteQueue" style="white-space:nowrap; background:var(--color-tangerine); color:#fff; border:none; padding:8px 12px;">Queue Write</button>
           </div>
           <div id="writeStatusMsg" style="font-size:0.72rem; color:var(--color-green); margin-top:4px; display:none;">
-            ✅ Queued! Tap tag on PN532 or type W:content in Serial to burn.
+            ✅ Queued! Tap tag on PN532 or burn via phone NFC Tools app.
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Right Column: Live Trail Monitor & Tag Inventory -->
+    <!-- Right Column: NFC Testing Suite + Live Inventory Table + Hardware Event Log -->
     <div style="display: flex; flex-direction: column; gap: 20px;">
+
+      <!-- NFC Testing & Station Simulator Lab -->
+      <div class="card" style="border-color: rgba(255, 122, 0, 0.4); background: linear-gradient(135deg, #1E2227 0%, #1a1e24 100%);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <h3 style="font-size: 0.98rem; display: flex; align-items: center; gap: 6px; color: var(--color-tangerine);">
+            <span>🧪</span> NFC Testing Suite & Hardware Simulator
+          </h3>
+          <span style="font-size: 0.72rem; color: var(--text-muted); background: var(--bg-card-elevated); padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border-subtle);">
+            Target: <b id="labTargetUidDisplay" style="color: var(--color-tangerine); font-family: monospace;">04DBCE42CA2A81</b>
+          </span>
+        </div>
+
+        <!-- Target Tag Quick Selectors -->
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Active Tag:</span>
+          <button type="button" class="tag-quick-pill primary-nfc lab-tag-pill active" data-uid="04DBCE42CA2A81" title="Primary Physical NFC Bracelet">🏷️ 04DBCE42CA2A81 (Bracelet)</button>
+          <button type="button" class="tag-quick-pill lab-tag-pill" data-uid="FA1D2207" title="Blue RFID Fob">🔵 FA1D2207 (Blue Fob)</button>
+          <button type="button" class="tag-quick-pill lab-tag-pill" data-uid="2E720204" title="White RFID Card">⚪ 2E720204 (Card)</button>
+          <button type="button" class="tag-quick-pill lab-tag-pill" data-uid="BEAD_001">BEAD_001</button>
+        </div>
+
+        <!-- Testing Actions -->
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="btn-row-action btn-row-cp" id="btnLabCP1" style="padding: 7px 12px; font-size: 0.78rem;">
+            📍 Simulate CP1 Tap (Sunrise Peak)
+          </button>
+          <button type="button" class="btn-row-action btn-row-cp" id="btnLabCP2" style="padding: 7px 12px; font-size: 0.78rem;">
+            📍 Simulate CP2 Tap (Dongmun Market)
+          </button>
+          <button type="button" class="btn-row-action btn-row-reset" id="btnLabReset" style="padding: 7px 12px; font-size: 0.78rem;">
+            🔄 Reset Tag Stamps
+          </button>
+          <button type="button" class="btn-row-action btn-row-qr" id="btnLabShowQr" style="padding: 7px 12px; font-size: 0.78rem;">
+            📲 Show Phone QR Code
+          </button>
+          <button type="button" class="btn-row-action btn-row-phone" id="btnLabOpenPhone" style="padding: 7px 12px; font-size: 0.78rem;">
+            📱 Open Phone View ↗
+          </button>
+          <button type="button" class="btn-row-action" id="btnLabCopyUrl" style="padding: 7px 12px; font-size: 0.78rem;" title="Copy direct URL to write to NFC sticker via phone app">
+            📋 Copy NFC URL
+          </button>
+        </div>
+      </div>
       
       <!-- Live Status Table -->
       <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
           <h3><span>📊</span> Live AuraBeads Inventory & Scanned Tags</h3>
-          <button class="btn-edit" id="btnRefreshList" style="font-size: 0.75rem;">🔄 Refresh</button>
+          <button type="button" class="btn-edit" id="btnRefreshList" style="font-size: 0.75rem;">🔄 Refresh</button>
         </div>
 
         <div class="table-container">
@@ -229,6 +396,29 @@
 
   </div>
 
+  <!-- Smartphone QR Code Modal -->
+  <div id="qrModal" class="modal-overlay">
+    <div class="modal-dialog">
+      <button type="button" id="btnCloseQrModal" style="position: absolute; top: 12px; right: 14px; background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+      <h3 style="margin-bottom: 6px; font-size: 1.15rem; color: #FFF; display: flex; align-items: center; justify-content: center; gap: 6px;">
+        <span>📲</span> Smartphone Pairing QR Code
+      </h3>
+      <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 14px;">
+        Scan with your smartphone camera to instantly open live dashboard for tag <b id="modalTagUid" style="color: var(--color-tangerine); font-family: monospace;">04DBCE42CA2A81</b>.
+      </p>
+      <div style="background: #FFFFFF; padding: 14px; border-radius: 12px; display: inline-block; margin-bottom: 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.5);">
+        <img id="modalQrImg" src="" alt="NFC Tag QR Code" style="width: 200px; height: 200px; display: block;">
+      </div>
+      <div id="modalTargetUrl" style="background: var(--bg-card-elevated); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 8px 10px; font-family: monospace; font-size: 0.74rem; color: var(--color-haenyeo-teal); word-break: break-all; margin-bottom: 14px;">
+        https://smart-nfc-bracelet.vercel.app/04DBCE42CA2A81
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: center;">
+        <button type="button" id="btnCopyModalUrl" class="btn-edit" style="background: var(--color-tangerine); color: #fff; border: none; font-size: 0.8rem; padding: 8px 16px;">📋 Copy Link</button>
+        <a id="btnOpenModalUrl" href="#" target="_blank" class="btn-edit" style="text-decoration: none; font-size: 0.8rem; padding: 8px 16px;">🚀 Open Tab</a>
+      </div>
+    </div>
+  </div>
+
   <script>
     const touristTableBody = document.getElementById('touristTableBody');
     const formRegister = document.getElementById('formRegister');
@@ -242,6 +432,22 @@
     const adminLogBox = document.getElementById('adminLogBox');
     const btnSelectDefault = document.getElementById('btnSelectDefault');
     const btnRefreshList = document.getElementById('btnRefreshList');
+    const btnResetAllStamps = document.getElementById('btnResetAllStamps');
+    const btnFactoryReset = document.getElementById('btnFactoryReset');
+    const btnFillPhoneUrl = document.getElementById('btnFillPhoneUrl');
+    const labTargetUidDisplay = document.getElementById('labTargetUidDisplay');
+
+    // QR Modal Elements
+    const qrModal = document.getElementById('qrModal');
+    const btnCloseQrModal = document.getElementById('btnCloseQrModal');
+    const modalTagUid = document.getElementById('modalTagUid');
+    const modalQrImg = document.getElementById('modalQrImg');
+    const modalTargetUrl = document.getElementById('modalTargetUrl');
+    const btnCopyModalUrl = document.getElementById('btnCopyModalUrl');
+    const btnOpenModalUrl = document.getElementById('btnOpenModalUrl');
+
+    let activeTestUid = '04DBCE42CA2A81';
+    let lastHandledScanTimestamp = 0;
 
     function logEvent(text) {
       const div = document.createElement('div');
@@ -250,7 +456,58 @@
       adminLogBox.prepend(div);
     }
 
-    let lastHandledScanTimestamp = 0;
+    function setActiveTestUid(uid) {
+      activeTestUid = uid.toUpperCase().trim();
+      labTargetUidDisplay.textContent = activeTestUid;
+      document.querySelectorAll('.lab-tag-pill').forEach(pill => {
+        if (pill.getAttribute('data-uid') === activeTestUid) {
+          pill.classList.add('active');
+        } else {
+          pill.classList.remove('active');
+        }
+      });
+    }
+
+    function getTagUrl(uid) {
+      const origin = window.location.origin;
+      return `${origin}/${encodeURIComponent(uid)}`;
+    }
+
+    function openQrModal(uid) {
+      const target = uid || activeTestUid;
+      const url = getTagUrl(target);
+      modalTagUid.textContent = target;
+      modalTargetUrl.textContent = url;
+      modalQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
+      btnOpenModalUrl.href = url;
+      qrModal.classList.add('open');
+    }
+
+    function closeQrModal() {
+      qrModal.classList.remove('open');
+    }
+
+    btnCloseQrModal.addEventListener('click', closeQrModal);
+    qrModal.addEventListener('click', (e) => {
+      if (e.target === qrModal) closeQrModal();
+    });
+
+    btnCopyModalUrl.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(modalTargetUrl.textContent);
+        const originalText = btnCopyModalUrl.textContent;
+        btnCopyModalUrl.textContent = '✅ Copied!';
+        setTimeout(() => { btnCopyModalUrl.textContent = originalText; }, 2000);
+      } catch (err) {
+        alert('URL: ' + modalTargetUrl.textContent);
+      }
+    });
+
+    // Auto-fill write URL
+    btnFillPhoneUrl.addEventListener('click', () => {
+      const uid = adminUid.value.trim() || activeTestUid;
+      document.getElementById('customWriteContent').value = getTagUrl(uid);
+    });
 
     async function loadTourists() {
       try {
@@ -265,6 +522,7 @@
           if (data.lastScan && data.lastScan.timestamp > lastHandledScanTimestamp) {
             lastHandledScanTimestamp = data.lastScan.timestamp;
             adminUid.value = data.lastScan.uid;
+            setActiveTestUid(data.lastScan.uid);
             document.getElementById('displayReadUid').textContent = data.lastScan.uid;
             document.getElementById('displayTagContent').textContent = data.lastScan.content || '(Blank / Unformatted)';
             logEvent(`🔍 PN532 READ: Tag [${data.lastScan.uid}] ➔ "${data.lastScan.content || 'N/A'}"`);
@@ -272,7 +530,6 @@
             setTimeout(() => { adminUid.style.border = ''; }, 2000);
           }
         } else {
-          // Fallback if running on older API version
           const fallbackRes = await fetch('/api/tourists');
           if (fallbackRes.ok) {
             const list = await fallbackRes.json();
@@ -296,6 +553,11 @@
 
     function renderTable(list) {
       touristTableBody.innerHTML = '';
+      if (!list || list.length === 0) {
+        touristTableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No bracelets registered.</td></tr>';
+        return;
+      }
+
       list.forEach(t => {
         const tr = document.createElement('tr');
 
@@ -303,33 +565,198 @@
         const cp2Badge = t.stamps.checkpoint2 ? '<span class="badge-stamp badge-yes">✅ Stamped</span>' : '<span class="badge-stamp badge-no">Pending</span>';
         
         let voucherBadge = '<span class="badge-stamp badge-no">Locked</span>';
-        if (t.voucher.redeemed) {
+        if (t.voucher && t.voucher.redeemed) {
           voucherBadge = '<span class="badge-stamp badge-no" style="background:#374151;color:#D1D5DB;">Redeemed</span>';
-        } else if (t.voucher.unlocked) {
+        } else if (t.voucher && t.voucher.unlocked) {
           voucherBadge = '<span class="badge-stamp badge-yes" style="background:rgba(255,122,0,0.2);color:#FF7A00;border-color:#FF7A00;">🎁 Unlocked</span>';
         }
 
         tr.innerHTML = `
-          <td style="font-family: monospace; font-weight: bold; color: var(--color-tangerine);">${t.uid}</td>
+          <td style="font-family: monospace; font-weight: bold; color: var(--color-tangerine); cursor: pointer;" title="Click to select for testing" onclick="setActiveTestUid('${t.uid}')">
+            ${t.uid}
+          </td>
           <td><b>${t.name}</b><br><span style="color:var(--text-muted);font-size:0.75rem;">${t.country} (${t.language})</span></td>
-          <td style="font-size:0.78rem;">${t.dietary || 'None'}</td>
+          <td style="font-size:0.76rem;">${t.dietary || 'None'}</td>
           <td>${cp1Badge}</td>
           <td>${cp2Badge}</td>
           <td>${voucherBadge}</td>
           <td>
-            <a href="/?uid=${encodeURIComponent(t.uid)}" target="_blank" style="color:var(--color-haenyeo-teal);font-size:0.78rem;text-decoration:none;font-weight:600;">Open Phone View ↗</a>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              <a href="/?uid=${encodeURIComponent(t.uid)}" target="_blank" class="btn-row-action btn-row-phone" title="Open Mobile View">📱 Phone</a>
+              <button type="button" class="btn-row-action btn-row-qr" onclick="openQrModal('${t.uid}')" title="Scan QR Code">📲 QR</button>
+              <button type="button" class="btn-row-action btn-row-cp" onclick="simulateCheckin('${t.uid}', 'checkpoint1')" title="Simulate Checkpoint 1 Tap">📍 CP1</button>
+              <button type="button" class="btn-row-action btn-row-cp" onclick="simulateCheckin('${t.uid}', 'checkpoint2')" title="Simulate Checkpoint 2 Tap">📍 CP2</button>
+              <button type="button" class="btn-row-action btn-row-reset" onclick="resetTag('${t.uid}')" title="Reset stamps & voucher for this tag">🔄 Reset</button>
+              <button type="button" class="btn-row-action btn-row-del" onclick="deleteTag('${t.uid}')" title="Delete tag from database">🗑️ Del</button>
+            </div>
           </td>
         `;
         touristTableBody.appendChild(tr);
       });
     }
 
-    // Quick tag selector
+    // Simulate Check-in
+    async function simulateCheckin(uid, station) {
+      try {
+        const res = await fetch('/api/checkin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid, station })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          logEvent(`📍 Simulated Tap: [${uid}] stamped at [${station.toUpperCase()}]`);
+          loadTourists();
+        } else {
+          alert('Check-in error: ' + (data.error || 'Failed'));
+        }
+      } catch (err) {
+        alert('Check-in failed: ' + err.message);
+      }
+    }
+
+    // Reset single tag
+    async function resetTag(uid) {
+      if (!confirm(`Reset stamps and voucher for tag [${uid}]?\n(Tourist name & profile will be kept)`)) return;
+      try {
+        const res = await fetch('/api/tourist/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid })
+        });
+        if (res.ok) {
+          logEvent(`🔄 Reset stamps for tag [${uid}]`);
+          loadTourists();
+        } else {
+          const err = await res.json();
+          alert('Error: ' + (err.error || 'Failed to reset tag'));
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // Delete single tag
+    async function deleteTag(uid) {
+      if (!confirm(`⚠️ Are you sure you want to DELETE tag [${uid}] from database completely?`)) return;
+      try {
+        const res = await fetch('/api/tourist/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid })
+        });
+        if (res.ok) {
+          logEvent(`🗑️ Deleted tag [${uid}] from database`);
+          loadTourists();
+        } else {
+          const err = await res.json();
+          alert('Error: ' + (err.error || 'Failed to delete tag'));
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // Header Action: Reset All Stamps
+    btnResetAllStamps.addEventListener('click', async () => {
+      if (!confirm('🔄 Reset stamps and vouchers for ALL registered tourists?\n\n(This preserves traveler profiles so you can start a fresh trail demo run immediately)')) return;
+      try {
+        const res = await fetch('/api/admin/reset-stamps', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          logEvent('🔄 Reset all tourist stamps and vouchers.');
+          alert('✅ All stamps and vouchers reset successfully!');
+          loadTourists();
+        }
+      } catch (err) {
+        alert('Failed: ' + err.message);
+      }
+    });
+
+    // Header Action: Factory Reset
+    btnFactoryReset.addEventListener('click', async () => {
+      if (!confirm('⚠️ FACTORY RESET WARNING:\n\nThis will wipe the entire database back to default initial tags.\nAre you sure you want to proceed?')) return;
+      try {
+        const res = await fetch('/api/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          logEvent('⚠️ Factory reset completed.');
+          alert('✅ Database restored to factory defaults!');
+          loadTourists();
+        }
+      } catch (err) {
+        alert('Failed: ' + err.message);
+      }
+    });
+
+    // NFC Testing Lab Handlers
+    document.querySelectorAll('.lab-tag-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        setActiveTestUid(pill.getAttribute('data-uid'));
+      });
+    });
+
+    document.getElementById('btnLabCP1').addEventListener('click', () => {
+      simulateCheckin(activeTestUid, 'checkpoint1');
+    });
+
+    document.getElementById('btnLabCP2').addEventListener('click', () => {
+      simulateCheckin(activeTestUid, 'checkpoint2');
+    });
+
+    document.getElementById('btnLabReset').addEventListener('click', () => {
+      resetTag(activeTestUid);
+    });
+
+    document.getElementById('btnLabShowQr').addEventListener('click', () => {
+      openQrModal(activeTestUid);
+    });
+
+    document.getElementById('btnLabOpenPhone').addEventListener('click', () => {
+      window.open(getTagUrl(activeTestUid), '_blank');
+    });
+
+    document.getElementById('btnLabCopyUrl').addEventListener('click', async () => {
+      const url = getTagUrl(activeTestUid);
+      try {
+        await navigator.clipboard.writeText(url);
+        const btn = document.getElementById('btnLabCopyUrl');
+        const orig = btn.textContent;
+        btn.textContent = '✅ Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      } catch (err) {
+        prompt('Copy NFC URL:', url);
+      }
+    });
+
+    // Quick Fill Pills in Registration Form
+    document.querySelectorAll('.btn-fill-uid').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const uid = btn.getAttribute('data-uid');
+        adminUid.value = uid;
+        setActiveTestUid(uid);
+        fetch(`/api/tourist/${uid}`).then(r => r.json()).then(t => {
+          if (t && t.name) {
+            adminName.value = t.name;
+            adminCountry.value = t.country;
+            adminLanguage.value = t.language;
+            adminDietary.value = t.dietary || '';
+            adminEmergency.value = t.emergencyContact || '';
+          }
+        });
+      });
+    });
+
+    // Prompt Tag Selector
     btnSelectDefault.addEventListener('click', () => {
-      const pick = prompt('Select Demo Tag (BEAD_001, BEAD_002, BEAD_003, BEAD_004, BEAD_005):', 'BEAD_001');
+      const pick = prompt('Select Demo Tag (04DBCE42CA2A81, FA1D2207, 2E720204, BEAD_001):', '04DBCE42CA2A81');
       if (pick) {
         adminUid.value = pick.trim().toUpperCase();
-        // Load details if already present
+        setActiveTestUid(adminUid.value);
         fetch(`/api/tourist/${adminUid.value}`).then(r => r.json()).then(t => {
           if (t && t.name) {
             adminName.value = t.name;
@@ -364,6 +791,7 @@
         const data = await res.json();
         if (res.ok) {
           logEvent(`Registered tourist ${data.tourist.name} (${data.tourist.uid})`);
+          setActiveTestUid(data.tourist.uid);
           alert(`✅ Successfully registered ${data.tourist.name} to bracelet ${data.tourist.uid}!`);
           loadTourists();
         }
@@ -402,7 +830,7 @@
     function setupAdminWS() {
       const isVercel = window.location.hostname.includes('vercel.app');
 
-      // Auto-poll every 2 seconds on Vercel or as background refresher
+      // Auto-poll every 2 seconds
       setInterval(loadTourists, 2000);
 
       if (isVercel) {
@@ -425,6 +853,7 @@
             } else if (msg.event === 'ADMIN_TAG_SCANNED') {
               logEvent(`🔍 PN532 ADMIN SCAN: Tag [${msg.payload.uid}] placed on Admin reader!`);
               adminUid.value = msg.payload.uid;
+              setActiveTestUid(msg.payload.uid);
               loadTourists();
             } else if (msg.event === 'PROFILE_UPDATED') {
               logEvent(`✏️ PROFILE SYNC: Tag [${msg.payload.uid}] updated profile on phone.`);

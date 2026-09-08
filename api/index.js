@@ -394,7 +394,62 @@ app.post('/api/redeem', (req, res) => {
   res.json({ success: true, message: '4,000 KRW Voucher redeemed successfully!', tourist });
 });
 
-// Reset demo
+// Reset stamps for a single tag (keeps profile info intact)
+app.post('/api/tourist/reset', (req, res) => {
+  const { uid } = req.body;
+  if (!uid) return res.status(400).json({ error: 'UID required' });
+  const currentDb = getDatabase();
+  const cleanUid = uid.toUpperCase().trim();
+  const tourist = currentDb[cleanUid];
+
+  if (!tourist) return res.status(404).json({ error: 'Tourist tag not found' });
+
+  tourist.stamps = { checkpoint1: false, checkpoint2: false };
+  tourist.voucher.unlocked = false;
+  tourist.voucher.redeemed = false;
+  delete tourist.voucher.redeemedAt;
+  tourist.lastCheckin = null;
+
+  saveDatabase();
+  addEvent('RESET', `Reset stamps and voucher for Tag [${cleanUid}]`);
+  res.json({ success: true, message: `Stamps reset for ${cleanUid}`, tourist });
+});
+
+// Delete a single tag from database
+app.post('/api/tourist/delete', (req, res) => {
+  const { uid } = req.body;
+  if (!uid) return res.status(400).json({ error: 'UID required' });
+  const currentDb = getDatabase();
+  const cleanUid = uid.toUpperCase().trim();
+
+  if (currentDb[cleanUid]) {
+    delete currentDb[cleanUid];
+    saveDatabase();
+    addEvent('DELETE', `Deleted Tag [${cleanUid}] from database`);
+    return res.json({ success: true, message: `Deleted tag ${cleanUid}` });
+  } else {
+    return res.status(404).json({ error: 'Tag not found' });
+  }
+});
+
+// Reset all stamps across all tourists (ready for fresh demo)
+app.post('/api/admin/reset-stamps', (req, res) => {
+  const currentDb = getDatabase();
+  for (const t of Object.values(currentDb)) {
+    t.stamps = { checkpoint1: false, checkpoint2: false };
+    if (t.voucher) {
+      t.voucher.unlocked = false;
+      t.voucher.redeemed = false;
+      delete t.voucher.redeemedAt;
+    }
+    t.lastCheckin = null;
+  }
+  saveDatabase();
+  addEvent('RESET_ALL', 'Reset all tourist stamps and vouchers for fresh demo.');
+  res.json({ success: true, message: 'All stamps reset successfully' });
+});
+
+// Reset demo to factory defaults
 app.post('/api/reset', (req, res) => {
   const { uid } = req.body;
   const currentDb = getDatabase();
@@ -407,12 +462,22 @@ app.post('/api/reset', (req, res) => {
       currentDb[cleanUid].stamps = { checkpoint1: false, checkpoint2: false };
       currentDb[cleanUid].voucher.unlocked = false;
       currentDb[cleanUid].voucher.redeemed = false;
+      currentDb[cleanUid].lastCheckin = null;
     }
+    addEvent('RESET', `Reset tag [${cleanUid}] to default`);
   } else {
     db = JSON.parse(JSON.stringify(DEFAULT_TAGS));
+    addEvent('FACTORY_RESET', 'System restored to factory default tags.');
   }
   saveDatabase();
   res.json({ success: true, message: 'Reset completed' });
 });
+
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`🌋 Jeju AuraBeads Server listening on http://localhost:${PORT}`);
+  });
+}
 
 module.exports = app;
