@@ -114,21 +114,12 @@ function getDatabase() {
     if (fs.existsSync(DB_FILE)) {
       try {
         db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-        // Ensure all DEFAULT_TAGS (including physical tag 04DBCE42CA2A81) are present
-        let updated = false;
-        for (const [key, val] of Object.entries(DEFAULT_TAGS)) {
-          if (!db[key]) {
-            db[key] = JSON.parse(JSON.stringify(val));
-            updated = true;
-          }
-        }
-        if (updated) saveDatabase();
       } catch (e) {
-        db = JSON.parse(JSON.stringify(DEFAULT_TAGS));
+        db = {};
         saveDatabase();
       }
     } else {
-      db = JSON.parse(JSON.stringify(DEFAULT_TAGS));
+      db = {};
       saveDatabase();
     }
   }
@@ -449,9 +440,25 @@ app.post('/api/admin/reset-stamps', (req, res) => {
   res.json({ success: true, message: 'All stamps reset successfully' });
 });
 
-// Reset demo to factory defaults
+// Delete ALL tourists / Factory Reset: completely wipes all UIDs from database
+app.post('/api/admin/delete-all', (req, res) => {
+  db = {};
+  saveDatabase();
+  addEvent('FACTORY_RESET', 'Factory reset: Deleted ALL UIDs from database.');
+  res.json({ success: true, message: 'All UIDs deleted successfully. Database is now empty.' });
+});
+
+// Restore sample demo tags if needed
+app.post('/api/admin/restore-defaults', (req, res) => {
+  db = JSON.parse(JSON.stringify(DEFAULT_TAGS));
+  saveDatabase();
+  addEvent('RESTORE_DEFAULTS', 'Restored sample demo tags to database.');
+  res.json({ success: true, message: 'Default demo tags restored', count: Object.keys(db).length });
+});
+
+// Reset demo or factory reset
 app.post('/api/reset', (req, res) => {
-  const { uid } = req.body;
+  const { uid, restoreDefaults } = req.body || {};
   const currentDb = getDatabase();
 
   if (uid) {
@@ -465,12 +472,16 @@ app.post('/api/reset', (req, res) => {
       currentDb[cleanUid].lastCheckin = null;
     }
     addEvent('RESET', `Reset tag [${cleanUid}] to default`);
-  } else {
+  } else if (restoreDefaults) {
     db = JSON.parse(JSON.stringify(DEFAULT_TAGS));
-    addEvent('FACTORY_RESET', 'System restored to factory default tags.');
+    addEvent('RESTORE_DEFAULTS', 'Restored default tags to database.');
+  } else {
+    // FACTORY RESET = DELETE ALL UIDS!
+    db = {};
+    addEvent('FACTORY_RESET', 'Factory reset: Deleted ALL UIDs from database.');
   }
   saveDatabase();
-  res.json({ success: true, message: 'Reset completed' });
+  res.json({ success: true, message: 'Reset completed', remaining: Object.keys(db).length });
 });
 
 if (require.main === module) {

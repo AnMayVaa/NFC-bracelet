@@ -202,8 +202,11 @@
       <button type="button" id="btnResetAllStamps" class="btn-edit" style="color: var(--color-gold); border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1);" title="Reset stamps and vouchers for all tourists (preserves profiles)">
         🔄 Reset All Stamps
       </button>
-      <button type="button" id="btnFactoryReset" class="btn-edit" style="color: #EF4444; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1);" title="Reset system back to default demo state">
-        ⚠️ Factory Reset
+      <button type="button" id="btnFactoryReset" class="btn-edit" style="color: #EF4444; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1);" title="Completely delete all UIDs from database">
+        🗑️ Delete All UIDs (Factory Reset)
+      </button>
+      <button type="button" id="btnRestoreDefaults" class="btn-edit" style="color: #10B981; border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.1);" title="Load sample demo tags (BEAD_001 - BEAD_005)">
+        🌱 Load Demo Tags
       </button>
       <a href="/" target="_blank" class="btn-edit" style="text-decoration: none;">📱 Open Mobile Dashboard ↗</a>
     </div>
@@ -434,6 +437,7 @@
     const btnRefreshList = document.getElementById('btnRefreshList');
     const btnResetAllStamps = document.getElementById('btnResetAllStamps');
     const btnFactoryReset = document.getElementById('btnFactoryReset');
+    const btnRestoreDefaults = document.getElementById('btnRestoreDefaults');
     const btnFillPhoneUrl = document.getElementById('btnFillPhoneUrl');
     const labTargetUidDisplay = document.getElementById('labTargetUidDisplay');
 
@@ -554,7 +558,7 @@
     function renderTable(list) {
       touristTableBody.innerHTML = '';
       if (!list || list.length === 0) {
-        touristTableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No bracelets registered.</td></tr>';
+        touristTableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">✨ Database is empty (0 UIDs). Tap your NFC bracelet on the PN532 or register above!</td></tr>';
         return;
       }
 
@@ -675,17 +679,35 @@
       }
     });
 
-    // Header Action: Factory Reset
+    // Header Action: Factory Reset / Delete ALL UIDs
     btnFactoryReset.addEventListener('click', async () => {
-      if (!confirm('⚠️ FACTORY RESET WARNING:\n\nThis will wipe the entire database back to default initial tags.\nAre you sure you want to proceed?')) return;
+      if (!confirm('⚠️ FACTORY RESET: DELETE ALL UIDs?\n\nThis will permanently delete every single UID and tourist from the database (0 UIDs remaining).\n\nAre you sure you want to delete all UIDs?')) return;
       try {
-        const res = await fetch('/api/reset', {
+        const res = await fetch('/api/admin/delete-all', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
         if (res.ok) {
-          logEvent('⚠️ Factory reset completed.');
-          alert('✅ Database restored to factory defaults!');
+          logEvent('🗑️ FACTORY RESET: Deleted all UIDs from database.');
+          alert('✅ Factory reset complete! All UIDs have been deleted from the database.');
+          loadTourists();
+        }
+      } catch (err) {
+        alert('Failed: ' + err.message);
+      }
+    });
+
+    // Header Action: Load Demo Tags
+    btnRestoreDefaults.addEventListener('click', async () => {
+      if (!confirm('Load sample demo tags (BEAD_001 - BEAD_005 + test fobs)?')) return;
+      try {
+        const res = await fetch('/api/admin/restore-defaults', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          logEvent('🌱 Restored sample demo tags.');
+          alert('✅ Sample demo tags loaded!');
           loadTourists();
         }
       } catch (err) {
