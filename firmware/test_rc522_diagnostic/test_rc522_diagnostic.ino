@@ -81,34 +81,49 @@ void setup() {
     Serial.println("👉 Check: Is pin RST wired to GPIO 22? Are header pins soldered?");
   }
 
-  // 5. Maximize Antenna Gain for sensitive detection of small NFC stickers
-  rfid.PCD_SetAntennaGain(rfid.RxGain_max);
-  Serial.println("🚀 Antenna Gain: Set to MAXIMUM (48dB)");
+  // 5. Maximize Antenna Receiver Gain & Transmitter Power
+  rfid.PCD_SetAntennaGain(rfid.RxGain_max); // Maximum 48dB receiver gain
+  rfid.PCD_WriteRegister(rfid.GsNReg, 0xFF);    // Max NMOS driver power
+  rfid.PCD_WriteRegister(rfid.CWGsPReg, 0x3F);  // Max PMOS carrier power
+  rfid.PCD_WriteRegister(rfid.ModGsPReg, 0x3F); // Max modulation power
+  Serial.println("🚀 RF Output & Receiver Gain: BOOSTED TO MAXIMUM");
 
   Serial.println("----------------------------------------------");
-  Serial.println("👉 TEST STEP 1: Hold the BLUE RFID FOB against the white circle.");
-  Serial.println("👉 TEST STEP 2: Hold the NFC STICKER against the white circle.");
+  Serial.println("👉 Hold the NFC STICKER directly on the outer edge of the PCB...");
   Serial.println("----------------------------------------------\n");
 }
 
 unsigned long lastHeartbeat = 0;
 
+// Custom card detection trying both REQA and WUPA (Wakeup Type A)
+bool checkCardPresent() {
+  byte bufferATQA[2];
+  byte bufferSize = sizeof(bufferATQA);
+  
+  // 1. Try standard REQA (IDLE cards)
+  MFRC522::StatusCode status = rfid.PICC_RequestA(bufferATQA, &bufferSize);
+  if (status == MFRC522::STATUS_OK || status == MFRC522::STATUS_COLLISION) {
+    return true;
+  }
+
+  // 2. Try WUPA (Wakes up cards from HALT state - crucial for NTAG stickers!)
+  bufferSize = sizeof(bufferATQA);
+  status = rfid.PICC_WakeupA(bufferATQA, &bufferSize);
+  if (status == MFRC522::STATUS_OK || status == MFRC522::STATUS_COLLISION) {
+    return true;
+  }
+
+  return false;
+}
+
 void loop() {
-  // Print a heartbeat every 3 seconds so you know loop is running
   if (millis() - lastHeartbeat > 3000) {
     lastHeartbeat = millis();
-    Serial.println("... scanning for card / NFC sticker ...");
+    Serial.println("... scanning for NFC sticker / RFID card ...");
   }
 
-  // Check for card
-  if (!rfid.PICC_IsNewCardPresent()) {
-    delay(50);
-    return;
-  }
-
-  // Read serial / UID
-  if (!rfid.PICC_ReadCardSerial()) {
-    delay(50);
+  // Check for card using both REQA and WUPA
+  if (!checkCardPresent() || !rfid.PICC_ReadCardSerial()) {
     return;
   }
 
@@ -117,7 +132,7 @@ void loop() {
   tone(BUZZER_PIN, 2000, 150);
 
   Serial.println("\n🎉 ==========================================");
-  Serial.print("🏷️  CARD / NFC TAG DETECTED! UID: ");
+  Serial.print("🏷️  TAG DETECTED! UID: ");
   String uidStr = "";
   for (byte i = 0; i < rfid.uid.size; i++) {
     if (rfid.uid.uidByte[i] < 0x10) Serial.print("0");
@@ -132,9 +147,9 @@ void loop() {
   Serial.print(rfid.uid.size);
   Serial.print(" bytes");
   if (rfid.uid.size == 7) {
-    Serial.println(" (NTAG213/215/216 NFC Tag!)");
+    Serial.println(" ✨ (NTAG215 NFC Tag / Bracelet DETECTED!) ✨");
   } else if (rfid.uid.size == 4) {
-    Serial.println(" (Mifare Classic 1K RFID Card/Fob!)");
+    Serial.println(" (Mifare Classic 1K RFID Card/Fob)");
   } else {
     Serial.println();
   }
