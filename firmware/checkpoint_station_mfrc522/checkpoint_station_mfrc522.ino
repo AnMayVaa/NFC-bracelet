@@ -77,14 +77,6 @@ void setup() {
   Serial.println(STATION_NAME);
   Serial.println("==============================================");
 
-  // Power-on self-test: flash LED and chirp buzzer
-  Serial.println("💡 Hardware Test: Testing LED & Buzzer...");
-  digitalWrite(LED_PIN, HIGH);
-  tone(BUZZER_PIN, 2200, 100);
-  delay(120);
-  noTone(BUZZER_PIN);
-  digitalWrite(LED_PIN, LOW);
-
   // Hardware reset pulse on RST pin (GPIO 22)
   pinMode(RST_PIN, OUTPUT);
   digitalWrite(RST_PIN, LOW);
@@ -236,27 +228,20 @@ bool sendCheckinToServer(String uid) {
   return ok;
 }
 
-// Chime on successful stamp (supports both active & passive buzzers)
+// Chime on successful stamp (works for both active and passive buzzers)
 void toneFeedbackSuccess() {
-  Serial.println("🔔 [FEEDBACK] Success Chime & LED ON (1.2s)...");
   digitalWrite(LED_PIN, HIGH);
-  tone(BUZZER_PIN, 1047, 120); // Note C6
+  tone(BUZZER_PIN, 2200, 120);
   delay(140);
-  tone(BUZZER_PIN, 1568, 220); // Note G6
-  delay(240);
-  noTone(BUZZER_PIN);
-  
-  // Keep LED clearly visible for 1 second
-  delay(800);
+  tone(BUZZER_PIN, 2800, 180);
+  delay(200);
   digitalWrite(LED_PIN, LOW);
 }
 
 // Low buzz on failure
 void toneFeedbackError() {
-  Serial.println("⚠️ [FEEDBACK] Error Buzz...");
   digitalWrite(LED_PIN, HIGH);
-  tone(BUZZER_PIN, 440, 350); // Low A4 buzz
-  delay(400);
-  noTone(BUZZER_PIN);
+  tone(BUZZER_PIN, 800, 350);
+  delay(380);
   digitalWrite(LED_PIN, LOW);
 }
