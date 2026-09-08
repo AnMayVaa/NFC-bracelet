@@ -77,9 +77,17 @@ void setup() {
   Serial.println(STATION_NAME);
   Serial.println("==============================================");
 
-  // 1. Initialize SPI bus & MFRC522
-  Serial.println("Initializing SPI bus (SCK=18, MISO=19, MOSI=23, SS=5)...");
+  // Hardware reset pulse on RST pin (GPIO 22)
+  pinMode(RST_PIN, OUTPUT);
+  digitalWrite(RST_PIN, LOW);
+  delay(10);
+  digitalWrite(RST_PIN, HIGH);
+  delay(50);
+
+  // 1. Initialize SPI bus & MFRC522 with stable 2MHz clock
+  Serial.println("Initializing SPI bus (SCK=18, MISO=19, MOSI=23, SS=5 @ 2MHz)...");
   SPI.begin(18, 19, 23, 5);
+  SPI.setFrequency(2000000);
   delay(50);
 
   Serial.println("Initializing MFRC522 RFID reader...");
@@ -88,6 +96,7 @@ void setup() {
 
   // Force Antenna RF Field ON
   mfrc522.PCD_AntennaOn();
+  mfrc522.PCD_WriteRegister(mfrc522.TxControlReg, 0x83);
 
   // Boost antenna gain to MAXIMUM (48dB) to easily detect small NFC stickers
   mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_max);
@@ -100,10 +109,10 @@ void setup() {
     Serial.println("❌ ERROR: MFRC522 not responding! Check wires, 3.3V power, or loose header pins.");
     Serial.println("👉 Common check: Pin 'SDA' on RC522 must go to ESP32 GPIO 5 (SPI SS)!");
     while (1) { delay(500); }
-  } else if (v == 0x82) {
-    Serial.println("✅ MFRC522 / FM17522 (Version 0x82) online! (Antenna active & Max Gain)");
+  } else if (v == 0x82 || v == 0xB2) {
+    Serial.printf("✅ RC522 / HW-126 (Version 0x%02X) online! (Antenna active & Max Gain)\n", v);
   } else {
-    Serial.println("✅ MFRC522 RFID & NFC reader online (Max Antenna Gain active)!");
+    Serial.printf("✅ MFRC522 reader online (Version 0x%02X)!\n", v);
   }
 
   // 2. Connect to Wi-Fi

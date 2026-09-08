@@ -80,6 +80,30 @@ const DEFAULT_TAGS = {
     stamps: { checkpoint1: false, checkpoint2: false },
     voucher: { unlocked: false, code: 'JEJU-4000-04DBCE42', redeemed: false },
     lastCheckin: null
+  },
+  'FA1D2207': {
+    uid: 'FA1D2207',
+    name: 'Jeju Explorer (Blue Fob #1)',
+    country: 'South Korea',
+    language: 'Korean',
+    dietary: 'None',
+    emergencyContact: '+82 10-1234-5678',
+    depositPaid: true,
+    stamps: { checkpoint1: false, checkpoint2: false },
+    voucher: { unlocked: false, code: 'JEJU-4000-FA1D2207', redeemed: false },
+    lastCheckin: null
+  },
+  '2E720204': {
+    uid: '2E720204',
+    name: 'Jeju Explorer (White Card #2)',
+    country: 'International',
+    language: 'English',
+    dietary: 'None',
+    emergencyContact: '+1 555-0199',
+    depositPaid: true,
+    stamps: { checkpoint1: false, checkpoint2: false },
+    voucher: { unlocked: false, code: 'JEJU-4000-2E720204', redeemed: false },
+    lastCheckin: null
   }
 };
 
@@ -263,6 +287,19 @@ app.post('/api/checkin', (req, res) => {
 
     if (tourist.stamps.checkpoint1 && tourist.stamps.checkpoint2) {
       tourist.voucher.unlocked = true;
+    }
+
+    // If check-in comes from RFID fob/card, mirror the stamp to the primary NFC bracelet (04DBCE42CA2A81)
+    if (cleanUid === 'FA1D2207' || cleanUid === '2E720204') {
+      const primaryBracelet = currentDb['04DBCE42CA2A81'];
+      if (primaryBracelet) {
+        primaryBracelet.stamps[station] = true;
+        primaryBracelet.lastCheckin = { station, timestamp: new Date().toISOString() };
+        if (primaryBracelet.stamps.checkpoint1 && primaryBracelet.stamps.checkpoint2) {
+          primaryBracelet.voucher.unlocked = true;
+        }
+        console.log(`✨ [SYNC] Mirrored checkin at ${station} from fob ${cleanUid} to bracelet 04DBCE42CA2A81!`);
+      }
     }
 
     saveDatabase();
