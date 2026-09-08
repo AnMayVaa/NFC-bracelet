@@ -37,8 +37,16 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
 
-  // 1. Start SPI bus explicitly on ESP32 VSPI pins
+  // Explicitly pull RST pin HIGH to ensure chip is awake from hard power-down
+  pinMode(RST_PIN, OUTPUT);
+  digitalWrite(RST_PIN, LOW);
+  delay(10);
+  digitalWrite(RST_PIN, HIGH);
+  delay(50);
+
+  // 1. Start SPI bus explicitly on ESP32 VSPI pins with stable 2MHz clock
   SPI.begin(18, 19, 23, 5); // SCK=18, MISO=19, MOSI=23, SS=5
+  SPI.setFrequency(2000000); // 2 MHz for rock-solid signal over jumper wires
   delay(50);
 
   // 2. Initialize MFRC522
@@ -56,21 +64,21 @@ void setup() {
     while (1) { delay(500); }
   } else if (v == 0x82) {
     Serial.println("✅ SPI SUCCESS: Found FM17522 / HW-126 Clone chip (Version 0x82).");
-    Serial.println("   (This is completely normal — 90% of RC522 modules use this chip!)");
-  } else if (v == 0x91 || v == 0x92) {
-    Serial.println("✅ SPI SUCCESS: Found Genuine NXP MFRC522 chip.");
   } else {
-    Serial.printf("✅ SPI SUCCESS: Chip responded with version 0x%02X.\n", v);
+    Serial.printf("✅ SPI SUCCESS: Chip version 0x%02X.\n", v);
   }
 
   // 4. Force Antenna ON and verify RF transmitter
-  rfid.PCD_AntennaOn();
-  byte tx = rfid.PCD_ReadRegister(rfid.TxControlReg);
-  if ((tx & 0x03) == 0x03) {
-    Serial.println("📶 RF Transmitter: ACTIVE (13.56 MHz field radiating)");
+  byte txBefore = rfid.PCD_ReadRegister(rfid.TxControlReg);
+  rfid.PCD_WriteRegister(rfid.TxControlReg, 0x83); // Force enable TX1 & TX2
+  byte txAfter = rfid.PCD_ReadRegister(rfid.TxControlReg);
+  Serial.printf("📶 Antenna TxControlReg: before=0x%02X, after=0x%02X\n", txBefore, txAfter);
+
+  if ((txAfter & 0x03) == 0x03) {
+    Serial.println("✅ RF Transmitter: ACTIVE (13.56 MHz carrier wave radiating)");
   } else {
-    Serial.println("⚠️ Warning: Antenna TxControl bits not set. Trying force enable...");
-    rfid.PCD_WriteRegister(rfid.TxControlReg, 0x83);
+    Serial.println("❌ Antenna Driver is OFF! (Registers are not writing).");
+    Serial.println("👉 Check: Is pin RST wired to GPIO 22? Are header pins soldered?");
   }
 
   // 5. Maximize Antenna Gain for sensitive detection of small NFC stickers
@@ -78,8 +86,8 @@ void setup() {
   Serial.println("🚀 Antenna Gain: Set to MAXIMUM (48dB)");
 
   Serial.println("----------------------------------------------");
-  Serial.println("👉 READY! Hold an NFC sticker or RFID blue fob");
-  Serial.println("   directly flat against the white circle on the RC522 PCB...");
+  Serial.println("👉 TEST STEP 1: Hold the BLUE RFID FOB against the white circle.");
+  Serial.println("👉 TEST STEP 2: Hold the NFC STICKER against the white circle.");
   Serial.println("----------------------------------------------\n");
 }
 
