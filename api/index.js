@@ -230,24 +230,34 @@ app.post('/api/register', (req, res) => {
 });
 
 let adminState = {
-  lastScan: null,
-  events: [
-    { type: 'SYSTEM', text: 'System initialized and connected to cloud.', timestamp: new Date().toISOString() }
-  ]
+  lastScan: null
 };
 
+function getEvents() {
+  const currentDb = getDatabase();
+  if (!currentDb._events || !Array.isArray(currentDb._events)) {
+    currentDb._events = [
+      { type: 'SYSTEM', text: 'System initialized and connected to cloud.', timestamp: new Date().toISOString() }
+    ];
+  }
+  return currentDb._events;
+}
+
 function addEvent(type, text) {
-  adminState.events.unshift({ type, text, timestamp: new Date().toISOString() });
-  if (adminState.events.length > 30) adminState.events.pop();
+  const events = getEvents();
+  events.unshift({ type, text, timestamp: new Date().toISOString() });
+  if (events.length > 35) events.pop();
+  saveDatabase();
 }
 
 // Get admin status, live event log, and tourist inventory
 app.get('/api/admin/status', (req, res) => {
   const currentDb = getDatabase();
+  const tourists = Object.values(currentDb).filter(item => item && item.uid && !item.uid.startsWith('_'));
   res.json({
     lastScan: adminState.lastScan,
-    events: adminState.events,
-    tourists: Object.values(currentDb)
+    events: getEvents(),
+    tourists: tourists
   });
 });
 

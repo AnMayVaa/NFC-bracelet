@@ -42,6 +42,8 @@ const char* serverBaseUrl = "https://smart-nfc-bracelet.vercel.app";
 // --- PN532 I2C Setup ---
 #define SDA_PIN 21
 #define SCL_PIN 22
+#define BUZZER_PIN 4
+#define LED_PIN    2
 Adafruit_PN532 nfc(SDA_PIN, SCL_PIN);
 
 // State tracking
@@ -52,6 +54,12 @@ const unsigned long DEBOUNCE_DELAY = 2500; // 2.5s debounce
 void setup() {
   Serial.begin(115200);
   delay(1000);
+
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+  digitalWrite(LED_PIN, LOW);
+
   Serial.println("\n==============================================");
   Serial.println("🌋 Jeju AuraBeads — Admin Station (ESP32+PN532)");
   Serial.println("==============================================");
@@ -335,6 +343,16 @@ void loop() {
 
       // 4. Send UID and Verified Content to Admin Center on Vercel
       sendAdminScanToServer(uidStr, verifiedContent);
+      
+      // Feedback: Flash LED and sound chime
+      digitalWrite(LED_PIN, HIGH);
+      tone(BUZZER_PIN, 1800, 120);
+      delay(140);
+      tone(BUZZER_PIN, 2400, 200);
+      delay(500);
+      noTone(BUZZER_PIN);
+      digitalWrite(LED_PIN, LOW);
+
       Serial.println("==============================================");
     }
   }
