@@ -68,6 +68,18 @@ const DEFAULT_TAGS = {
     stamps: { checkpoint1: false, checkpoint2: false },
     voucher: { unlocked: false, code: 'JEJU-4000-JUDGE', redeemed: false },
     lastCheckin: null
+  },
+  '04DBCE42CA2A81': {
+    uid: '04DBCE42CA2A81',
+    name: 'AuraBead Master (04DBCE42CA2A81)',
+    country: 'South Korea / Global',
+    language: 'English',
+    dietary: 'None',
+    emergencyContact: '+82 10-1234-5678',
+    depositPaid: true,
+    stamps: { checkpoint1: false, checkpoint2: false },
+    voucher: { unlocked: false, code: 'JEJU-4000-04DBCE42', redeemed: false },
+    lastCheckin: null
   }
 };
 
@@ -78,6 +90,15 @@ function getDatabase() {
     if (fs.existsSync(DB_FILE)) {
       try {
         db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+        // Ensure all DEFAULT_TAGS (including physical tag 04DBCE42CA2A81) are present
+        let updated = false;
+        for (const [key, val] of Object.entries(DEFAULT_TAGS)) {
+          if (!db[key]) {
+            db[key] = JSON.parse(JSON.stringify(val));
+            updated = true;
+          }
+        }
+        if (updated) saveDatabase();
       } catch (e) {
         db = JSON.parse(JSON.stringify(DEFAULT_TAGS));
         saveDatabase();
@@ -131,15 +152,28 @@ app.get('/api/tourists', (req, res) => {
   res.json(Object.values(currentDb));
 });
 
-// Get single tourist by UID
+// Get single tourist by UID (auto-provisions if not yet in database)
 app.get('/api/tourist/:uid', (req, res) => {
   const currentDb = getDatabase();
-  const uid = req.params.uid.toUpperCase();
-  if (currentDb[uid]) {
-    res.json(currentDb[uid]);
-  } else {
-    res.status(404).json({ error: 'Tourist tag not registered', uid });
+  const uid = req.params.uid.toUpperCase().trim();
+  if (!currentDb[uid]) {
+    currentDb[uid] = {
+      uid: uid,
+      name: `AuraBead Guest (${uid.length > 8 ? uid.substring(0, 8) + '...' : uid})`,
+      country: 'Global Traveler',
+      language: 'English',
+      dietary: 'None',
+      emergencyContact: '+82 10-0000-0000',
+      depositPaid: true,
+      stamps: { checkpoint1: false, checkpoint2: false },
+      voucher: { unlocked: false, code: `JEJU-4000-${uid.substring(0, 8)}`, redeemed: false },
+      lastCheckin: null,
+      registeredAt: new Date().toISOString()
+    };
+    saveDatabase();
+    addEvent('DATABASE', `Auto-registered bracelet [${uid}] on mobile access.`);
   }
+  res.json(currentDb[uid]);
 });
 
 // Register or update tourist profile
@@ -242,25 +276,48 @@ app.post('/api/checkin', (req, res) => {
 
 let pendingWrite = null; // Store pending custom content to write to tag
 
-// Admin tag scan notification (records UID + read content)
+// Admin tag scan notification (records UID + read content + auto-links in DB)
 app.post('/api/admin/scan', (req, res) => {
   const { uid, content } = req.body;
   if (!uid) return res.status(400).json({ error: 'UID required' });
   const cleanUid = uid.toUpperCase().trim();
   const tagContent = content || ('https://smart-nfc-bracelet.vercel.app/' + cleanUid);
   
+  const currentDb = getDatabase();
+  let tourist = currentDb[cleanUid];
+  if (!tourist) {
+    tourist = {
+      uid: cleanUid,
+      name: `AuraBead Guest (${cleanUid.length > 8 ? cleanUid.substring(0, 8) + '...' : cleanUid})`,
+      country: 'Global Traveler',
+      language: 'English',
+      dietary: 'None',
+      emergencyContact: '+82 10-0000-0000',
+      depositPaid: true,
+      stamps: { checkpoint1: false, checkpoint2: false },
+      voucher: { unlocked: false, code: `JEJU-4000-${cleanUid.substring(0, 8)}`, redeemed: false },
+      lastCheckin: null,
+      registeredAt: new Date().toISOString()
+    };
+    currentDb[cleanUid] = tourist;
+    saveDatabase();
+    addEvent('DATABASE', `Linked new bracelet [${cleanUid}] to tourist database.`);
+    console.log(`✨ [DATABASE] Auto-linked new UID ${cleanUid} to tourist inventory`);
+  }
+
   adminState.lastScan = { 
     uid: cleanUid, 
     content: tagContent, 
     timestamp: Date.now() 
   };
-  addEvent('ADMIN_SCAN', `PN532 Read Tag [${cleanUid}] ➔ Content: "${tagContent}"`);
+  addEvent('ADMIN_SCAN', `PN532 Scanned [${cleanUid}] ➔ Content: "${tagContent}"`);
   console.log(`🔍 [ADMIN SCAN] Tag ${cleanUid} | Content: ${tagContent}`);
 
   res.json({ 
     success: true, 
     uid: cleanUid, 
     content: tagContent,
+    tourist: tourist,
     pendingWrite: pendingWrite // Send pending write to ESP32 if available
   });
 });

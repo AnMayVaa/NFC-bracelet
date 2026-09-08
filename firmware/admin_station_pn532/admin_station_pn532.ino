@@ -101,12 +101,12 @@ String queuedWriteContent = ""; // Custom content queued from Serial or Web
 // Function to read NDEF memory contents (Text or URL) from NTAG213/215/216
 String readNtagContent() {
   uint8_t data[4];
-  uint8_t buffer[64];
+  uint8_t buffer[96];
   memset(buffer, 0, sizeof(buffer));
 
-  // Read pages 4 to 15 (48 bytes of user memory)
+  // Read pages 4 to 23 (80 bytes of user memory)
   bool readAny = false;
-  for (uint8_t page = 4; page < 16; page++) {
+  for (uint8_t page = 4; page < 24; page++) {
     if (nfc.ntag2xx_ReadPage(page, data)) {
       readAny = true;
       memcpy(&buffer[(page - 4) * 4], data, 4);
@@ -130,6 +130,7 @@ String readNtagContent() {
 
       uint8_t payloadLen = buffer[4];
       for (int i = 1; i < payloadLen; i++) {
+        if (6 + i >= sizeof(buffer)) break;
         char c = (char)buffer[6 + i];
         if (c == (char)0xFE || c == 0) break;
         url += c;
@@ -143,6 +144,7 @@ String readNtagContent() {
       uint8_t payloadLen = buffer[4];
       String text = "";
       for (int i = 1 + langLen; i < payloadLen; i++) {
+        if (6 + i >= sizeof(buffer)) break;
         char c = (char)buffer[6 + i];
         if (c == (char)0xFE || c == 0) break;
         text += c;
@@ -153,7 +155,7 @@ String readNtagContent() {
 
   // Fallback: return printable ASCII
   String raw = "";
-  for (int i = 0; i < 48; i++) {
+  for (int i = 0; i < 80; i++) {
     if (buffer[i] >= 32 && buffer[i] <= 126) {
       raw += (char)buffer[i];
     }
@@ -163,9 +165,25 @@ String readNtagContent() {
 
 // Function to burn NDEF URL or custom text onto NTAG213/215/216 tags
 bool writeNdefUrlToNtag(String content) {
-  // Format CC (Capability Container) at Page 3 for NTAG215
-  uint8_t cc[4] = { 0xE1, 0x10, 0x6D, 0x00 };
-  nfc.ntag2xx_WritePage(3, cc);
+  // Check Page 3 (Capability Container - CC) first.
+  // On factory NTAG stickers, Page 3 is OTP (One Time Programmable) or locked.
+  // Writing to Page 3 if already programmed causes NTAG to NAK and enter HALT state!
+  // Therefore: only write CC if Page 3 byte 0 is not 0xE1.
+  uint8_t page3[4];
+  if (nfc.ntag2xx_ReadPage(3, page3)) {
+    if (page3[0] != 0xE1) {
+      Serial.print("   Formatting CC on Page 3... ");
+      uint8_t cc[4] = { 0xE1, 0x10, 0x6D, 0x00 };
+      if (nfc.ntag2xx_WritePage(3, cc)) {
+        Serial.println("OK");
+      } else {
+        Serial.println("Skipped/Locked");
+      }
+      delay(10);
+    } else {
+      Serial.println("   Page 3 CC valid (0xE1). Preserving factory CC.");
+    }
+  }
 
   bool isUrl = content.startsWith("http://") || content.startsWith("https://");
   String domainAndPath = content;
@@ -190,17 +208,17 @@ bool writeNdefUrlToNtag(String content) {
 
   if (isUrl) {
     // NDEF URI Record ('U')
-    buffer[0] = 0x03;               // NDEF TLV
+    buffer[0] = 0x03;               // NDEF TLV Type
     buffer[1] = 5 + strLen;         // NDEF Length
-    buffer[2] = 0xD1;               // Header
+    buffer[2] = 0xD1;               // Header (MB=1, ME=1, SR=1, TNF=0x01)
     buffer[3] = 0x01;               // Type Length: 1 ('U')
     buffer[4] = 1 + strLen;         // Payload Length
     buffer[5] = 0x55;               // Type: 'U'
-    buffer[6] = prefixCode;         // Prefix identifier
+    buffer[6] = prefixCode;         // Prefix identifier (0x04 for https://)
     for (int i = 0; i < strLen; i++) {
       buffer[7 + i] = domainAndPath.charAt(i);
     }
-    buffer[7 + strLen] = 0xFE;      // Terminator
+    buffer[7 + strLen] = 0xFE;      // Terminator TLV
     totalBytes = 8 + strLen;
   } else {
     // NDEF Text Record ('T')
@@ -224,16 +242,22 @@ bool writeNdefUrlToNtag(String content) {
   uint8_t pagesCount = (totalBytes + 3) / 4;
   bool allSuccess = true;
 
+  Serial.printf("   Writing %d bytes across %d pages (Pages 4 to %d)...\n", totalBytes, pagesCount, 3 + pagesCount);
+
   for (uint8_t p = 0; p < pagesCount; p++) {
     uint8_t pageBuf[4];
     for (int b = 0; b < 4; b++) {
       int idx = p * 4 + b;
       pageBuf[b] = (idx < totalBytes) ? buffer[idx] : 0x00;
     }
-    if (!nfc.ntag2xx_WritePage(4 + p, pageBuf)) {
+    if (nfc.ntag2xx_WritePage(4 + p, pageBuf)) {
+      Serial.printf("   [Page %d] OK\n", 4 + p);
+    } else {
+      Serial.printf("   [Page %d] FAIL\n", 4 + p);
       allSuccess = false;
       break;
     }
+    delay(10); // Crucial 10ms EEPROM write-cycle delay for NTAG silicon
   }
 
   return allSuccess;
@@ -281,35 +305,36 @@ void loop() {
       Serial.print(uidLength);
       Serial.println(" bytes (NTAG215)");
 
-      // 1. READ Tag Memory Contents
-      Serial.println("📖 Reading Tag Memory Contents...");
-      String currentContent = readNtagContent();
-      Serial.print("📄 TAG CONTENT: ");
-      Serial.println(currentContent);
-
-      // 2. WRITE Tag Memory (Custom queued content or default phone launch URL)
+      // 1. Prepare Content to Write
       String contentToWrite = queuedWriteContent;
       if (contentToWrite.length() == 0) {
-        // Default target URL: "https://smart-nfc-bracelet.vercel.app/<UID>"
+        // Default target URL for smartphone tap:
         contentToWrite = "https://smart-nfc-bracelet.vercel.app/" + uidStr;
       }
 
+      // 2. WRITE Tag Memory
       if (uidLength == 7) {
-        Serial.print("✍️ Writing to Tag: ");
+        Serial.print("✍️ Writing Target URL: ");
         Serial.println(contentToWrite);
         if (writeNdefUrlToNtag(contentToWrite)) {
-          Serial.println("✅ SUCCESS! Content burned into NFC tag.");
-          Serial.println("📱 👉 Tap this tag on your phone to see it open!");
+          Serial.println("✅ SUCCESS! URL burned into NFC tag memory.");
+          Serial.println("📱 👉 Tap this tag on your phone to open the mobile dashboard!");
           if (queuedWriteContent.length() > 0) {
-            queuedWriteContent = ""; // Reset after single write
+            queuedWriteContent = ""; // Reset custom write queue
           }
         } else {
-          Serial.println("⚠️ Could not write (tag moved too quickly).");
+          Serial.println("⚠️ Write failed. Retrying on next tap.");
         }
       }
 
-      // 3. Send UID and Read Content to Admin Center on Vercel
-      sendAdminScanToServer(uidStr, currentContent);
+      // 3. READ BACK & VERIFY Memory Contents from the physical chip
+      Serial.println("📖 Reading & Verifying Tag Memory...");
+      String verifiedContent = readNtagContent();
+      Serial.print("📄 VERIFIED TAG CONTENT: ");
+      Serial.println(verifiedContent);
+
+      // 4. Send UID and Verified Content to Admin Center on Vercel
+      sendAdminScanToServer(uidStr, verifiedContent);
       Serial.println("==============================================");
     }
   }

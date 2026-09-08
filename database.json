@@ -97,5 +97,44 @@
       "redeemed": false
     },
     "lastCheckin": null
+  },
+  "04AABBCCDDEEFF": {
+    "uid": "04AABBCCDDEEFF",
+    "name": "AuraBead Guest (04AABBCC...)",
+    "country": "Global Traveler",
+    "language": "English",
+    "dietary": "None",
+    "emergencyContact": "+82 10-0000-0000",
+    "depositPaid": true,
+    "stamps": {
+      "checkpoint1": false,
+      "checkpoint2": false
+    },
+    "voucher": {
+      "unlocked": false,
+      "code": "JEJU-4000-04AABBCC",
+      "redeemed": false
+    },
+    "lastCheckin": null,
+    "registeredAt": "2026-09-08T17:55:11.086Z"
+  },
+  "04DBCE42CA2A81": {
+    "uid": "04DBCE42CA2A81",
+    "name": "AuraBead Master (04DBCE42CA2A81)",
+    "country": "South Korea / Global",
+    "language": "English",
+    "dietary": "None",
+    "emergencyContact": "+82 10-1234-5678",
+    "depositPaid": true,
+    "stamps": {
+      "checkpoint1": false,
+      "checkpoint2": false
+    },
+    "voucher": {
+      "unlocked": false,
+      "code": "JEJU-4000-04DBCE42",
+      "redeemed": false
+    },
+    "lastCheckin": null
   }
 }
