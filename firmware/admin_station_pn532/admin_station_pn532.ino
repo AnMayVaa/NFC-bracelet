@@ -96,34 +96,130 @@ void setup() {
   Serial.println("\n👉 Ready! Hold an NFC tag (NTAG215) near the PN532 to scan...\n");
 }
 
-// Function to automatically burn the NDEF URL onto NTAG213/215/216 tags
-bool writeNdefUrlToNtag(String uidStr) {
-  // URL to burn: "https://smart-nfc-bracelet.vercel.app/<UID>"
-  String domainAndPath = "smart-nfc-bracelet.vercel.app/" + uidStr;
-  uint8_t urlLen = domainAndPath.length();
-  
+String queuedWriteContent = ""; // Custom content queued from Serial or Web
+
+// Function to read NDEF memory contents (Text or URL) from NTAG213/215/216
+String readNtagContent() {
+  uint8_t data[4];
+  uint8_t buffer[64];
+  memset(buffer, 0, sizeof(buffer));
+
+  // Read pages 4 to 15 (48 bytes of user memory)
+  bool readAny = false;
+  for (uint8_t page = 4; page < 16; page++) {
+    if (nfc.ntag2xx_ReadPage(page, data)) {
+      readAny = true;
+      memcpy(&buffer[(page - 4) * 4], data, 4);
+    } else {
+      break;
+    }
+  }
+
+  if (!readAny) return "(Could not read memory pages)";
+
+  // Parse NDEF TLV (Type 0x03)
+  if (buffer[0] == 0x03) {
+    // 1. URI Record ('U' = 0x55)
+    if (buffer[2] == 0xD1 && buffer[5] == 0x55) {
+      uint8_t prefixCode = buffer[6];
+      String url = "";
+      if (prefixCode == 0x01) url = "http://www.";
+      else if (prefixCode == 0x02) url = "https://www.";
+      else if (prefixCode == 0x03) url = "http://";
+      else if (prefixCode == 0x04) url = "https://";
+
+      uint8_t payloadLen = buffer[4];
+      for (int i = 1; i < payloadLen; i++) {
+        char c = (char)buffer[6 + i];
+        if (c == (char)0xFE || c == 0) break;
+        url += c;
+      }
+      return url;
+    }
+    // 2. Text Record ('T' = 0x54)
+    else if (buffer[2] == 0xD1 && buffer[5] == 0x54) {
+      uint8_t statusByte = buffer[6];
+      uint8_t langLen = statusByte & 0x1F;
+      uint8_t payloadLen = buffer[4];
+      String text = "";
+      for (int i = 1 + langLen; i < payloadLen; i++) {
+        char c = (char)buffer[6 + i];
+        if (c == (char)0xFE || c == 0) break;
+        text += c;
+      }
+      return text;
+    }
+  }
+
+  // Fallback: return printable ASCII
+  String raw = "";
+  for (int i = 0; i < 48; i++) {
+    if (buffer[i] >= 32 && buffer[i] <= 126) {
+      raw += (char)buffer[i];
+    }
+  }
+  return raw.length() > 0 ? raw : "(Blank Tag / Unformatted)";
+}
+
+// Function to burn NDEF URL or custom text onto NTAG213/215/216 tags
+bool writeNdefUrlToNtag(String content) {
   // Format CC (Capability Container) at Page 3 for NTAG215
   uint8_t cc[4] = { 0xE1, 0x10, 0x6D, 0x00 };
   nfc.ntag2xx_WritePage(3, cc);
 
-  // Build NDEF Message Buffer:
-  // TLV: 0x03, [Len], 0xD1, 0x01, [PayloadLen], 0x55 ('U'), 0x04 (https://), [URL], 0xFE (Terminator)
-  uint8_t totalBytes = 8 + urlLen;
+  bool isUrl = content.startsWith("http://") || content.startsWith("https://");
+  String domainAndPath = content;
+  uint8_t prefixCode = 0x00; // No prefix
+
+  if (content.startsWith("https://www.")) {
+    prefixCode = 0x02;
+    domainAndPath = content.substring(12);
+  } else if (content.startsWith("https://")) {
+    prefixCode = 0x04;
+    domainAndPath = content.substring(8);
+  } else if (content.startsWith("http://")) {
+    prefixCode = 0x03;
+    domainAndPath = content.substring(7);
+  }
+
+  uint8_t strLen = domainAndPath.length();
   uint8_t buffer[128];
   memset(buffer, 0, sizeof(buffer));
 
-  buffer[0] = 0x03;               // NDEF TLV
-  buffer[1] = 5 + urlLen;         // NDEF Message Length
-  buffer[2] = 0xD1;               // Record Header (MB/ME/SR/TNF=1)
-  buffer[3] = 0x01;               // Type Length = 1 ('U')
-  buffer[4] = 1 + urlLen;         // Payload Length = 1 + urlLen
-  buffer[5] = 0x55;               // Type = 'U' (URI)
-  buffer[6] = 0x04;               // Prefix = 0x04 ("https://")
-  
-  for (int i = 0; i < urlLen; i++) {
-    buffer[7 + i] = domainAndPath.charAt(i);
+  uint8_t totalBytes = 0;
+
+  if (isUrl) {
+    // NDEF URI Record ('U')
+    buffer[0] = 0x03;               // NDEF TLV
+    buffer[1] = 5 + strLen;         // NDEF Length
+    buffer[2] = 0xD1;               // Header
+    buffer[3] = 0x01;               // Type Length: 1 ('U')
+    buffer[4] = 1 + strLen;         // Payload Length
+    buffer[5] = 0x55;               // Type: 'U'
+    buffer[6] = prefixCode;         // Prefix identifier
+    for (int i = 0; i < strLen; i++) {
+      buffer[7 + i] = domainAndPath.charAt(i);
+    }
+    buffer[7 + strLen] = 0xFE;      // Terminator
+    totalBytes = 8 + strLen;
+  } else {
+    // NDEF Text Record ('T')
+    String lang = "en";
+    buffer[0] = 0x03;
+    buffer[1] = 7 + strLen;
+    buffer[2] = 0xD1;
+    buffer[3] = 0x01;
+    buffer[4] = 3 + strLen;
+    buffer[5] = 0x54;               // Type: 'T'
+    buffer[6] = 0x02;               // Status: en (2 bytes)
+    buffer[7] = 'e';
+    buffer[8] = 'n';
+    for (int i = 0; i < strLen; i++) {
+      buffer[9 + i] = domainAndPath.charAt(i);
+    }
+    buffer[9 + strLen] = 0xFE;
+    totalBytes = 10 + strLen;
   }
-  buffer[7 + urlLen] = 0xFE;       // Terminator TLV
 
   uint8_t pagesCount = (totalBytes + 3) / 4;
   bool allSuccess = true;
@@ -144,15 +240,29 @@ bool writeNdefUrlToNtag(String uidStr) {
 }
 
 void loop() {
-  uint8_t success;
-  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer for UID (up to 7 bytes)
-  uint8_t uidLength;                        // Length of the UID (4 or 7 bytes)
+  // Check for custom write command from Serial Monitor (e.g. Type "W:https://example.com" or "W:Hello")
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    if (cmd.startsWith("W:") || cmd.startsWith("w:")) {
+      queuedWriteContent = cmd.substring(2);
+      Serial.println("\n----------------------------------------------");
+      Serial.print("✍️ QUEUED CUSTOM WRITE: \"");
+      Serial.print(queuedWriteContent);
+      Serial.println("\"");
+      Serial.println("👉 Hold NFC sticker near PN532 to burn this content!");
+      Serial.println("----------------------------------------------\n");
+    }
+  }
 
-  // Wait for an ISO14443A card
+  uint8_t success;
+  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t uidLength;
+
+  // Scan for 13.56MHz tag
   success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 150);
 
   if (success) {
-    // Format UID to uppercase HEX string (e.g., "04DBCE42CA2A81")
     String uidStr = "";
     for (uint8_t i = 0; i < uidLength; i++) {
       if (uid[i] < 0x10) uidStr += "0";
@@ -160,7 +270,6 @@ void loop() {
     }
     uidStr.toUpperCase();
 
-    // Debounce duplicate scans
     if (uidStr != lastScannedUid || (millis() - lastScanTime > DEBOUNCE_DELAY)) {
       lastScannedUid = uidStr;
       lastScanTime = millis();
@@ -170,22 +279,37 @@ void loop() {
       Serial.println(uidStr);
       Serial.print("Tag Length: ");
       Serial.print(uidLength);
-      Serial.println(" bytes");
+      Serial.println(" bytes (NTAG215)");
 
-      // 1. Auto-burn NDEF URL onto the tag for smartphone auto pop-up
+      // 1. READ Tag Memory Contents
+      Serial.println("📖 Reading Tag Memory Contents...");
+      String currentContent = readNtagContent();
+      Serial.print("📄 TAG CONTENT: ");
+      Serial.println(currentContent);
+
+      // 2. WRITE Tag Memory (Custom queued content or default phone launch URL)
+      String contentToWrite = queuedWriteContent;
+      if (contentToWrite.length() == 0) {
+        // Default target URL: "https://smart-nfc-bracelet.vercel.app/<UID>"
+        contentToWrite = "https://smart-nfc-bracelet.vercel.app/" + uidStr;
+      }
+
       if (uidLength == 7) {
-        Serial.print("✍️  Writing Phone Auto-Launch URL: https://smart-nfc-bracelet.vercel.app/");
-        Serial.println(uidStr);
-        if (writeNdefUrlToNtag(uidStr)) {
-          Serial.println("✅  SUCCESS! NDEF URL burned into NFC tag.");
-          Serial.println("📱  👉 Tap this tag on your iPhone or Android — it will pop up!");
+        Serial.print("✍️ Writing to Tag: ");
+        Serial.println(contentToWrite);
+        if (writeNdefUrlToNtag(contentToWrite)) {
+          Serial.println("✅ SUCCESS! Content burned into NFC tag.");
+          Serial.println("📱 👉 Tap this tag on your phone to see it open!");
+          if (queuedWriteContent.length() > 0) {
+            queuedWriteContent = ""; // Reset after single write
+          }
         } else {
-          Serial.println("⚠️  Could not write NDEF (tag may be locked or moved too fast).");
+          Serial.println("⚠️ Could not write (tag moved too quickly).");
         }
       }
 
-      // 2. Send scan to Admin Web Center
-      sendAdminScanToServer(uidStr);
+      // 3. Send UID and Read Content to Admin Center on Vercel
+      sendAdminScanToServer(uidStr, currentContent);
       Serial.println("==============================================");
     }
   }
@@ -195,7 +319,7 @@ void loop() {
 
 #include <WiFiClientSecure.h>
 
-void sendAdminScanToServer(String uid) {
+void sendAdminScanToServer(String uid, String content) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("⚠️ Cannot send: Wi-Fi disconnected");
     return;
@@ -206,7 +330,7 @@ void sendAdminScanToServer(String uid) {
 
   WiFiClientSecure secureClient;
   if (url.startsWith("https://")) {
-    secureClient.setInsecure(); // Allows HTTPS requests to Vercel without loading CA bundle
+    secureClient.setInsecure();
     http.begin(secureClient, url);
   } else {
     http.begin(url);
@@ -214,13 +338,16 @@ void sendAdminScanToServer(String uid) {
 
   http.addHeader("Content-Type", "application/json");
 
-  String jsonPayload = "{\"uid\":\"" + uid + "\"}";
+  // Send UID and read content
+  String escapedContent = content;
+  escapedContent.replace("\"", "\\\"");
+  String jsonPayload = "{\"uid\":\"" + uid + "\",\"content\":\"" + escapedContent + "\"}";
   int httpResponseCode = http.POST(jsonPayload);
 
   if (httpResponseCode > 0) {
     Serial.print("📡 Server Response [");
     Serial.print(httpResponseCode);
-    Serial.println("]: Tag pushed to Admin Registration UI!");
+    Serial.println("]: Tag UID & Content pushed to Admin Web!");
   } else {
     Serial.print("❌ HTTP POST Failed. Error: ");
     Serial.println(http.errorToString(httpResponseCode).c_str());

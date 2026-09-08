@@ -113,7 +113,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve index.html for direct UID paths (e.g. /04DBCE42CA2A81 or /BEAD_001)
-app.get('/:uid([a-zA-Z0-9_-]+)', (req, res, next) => {
+app.get('/:uid', (req, res, next) => {
   const { uid } = req.params;
   if (uid === 'api' || uid === 'admin' || uid === 'style.css' || uid === 'app.js' || uid === 'favicon.ico') {
     return next();
@@ -240,15 +240,44 @@ app.post('/api/checkin', (req, res) => {
   }
 });
 
-// Admin tag scan notification
+let pendingWrite = null; // Store pending custom content to write to tag
+
+// Admin tag scan notification (records UID + read content)
 app.post('/api/admin/scan', (req, res) => {
-  const { uid } = req.body;
+  const { uid, content } = req.body;
   if (!uid) return res.status(400).json({ error: 'UID required' });
   const cleanUid = uid.toUpperCase().trim();
-  adminState.lastScan = { uid: cleanUid, timestamp: Date.now() };
-  addEvent('ADMIN_SCAN', `PN532 Admin: Tag [${cleanUid}] placed on reader!`);
-  console.log(`🔍 [ADMIN SCAN] Tag ${cleanUid} detected.`);
-  res.json({ success: true, uid: cleanUid });
+  const tagContent = content || ('https://smart-nfc-bracelet.vercel.app/' + cleanUid);
+  
+  adminState.lastScan = { 
+    uid: cleanUid, 
+    content: tagContent, 
+    timestamp: Date.now() 
+  };
+  addEvent('ADMIN_SCAN', `PN532 Read Tag [${cleanUid}] ➔ Content: "${tagContent}"`);
+  console.log(`🔍 [ADMIN SCAN] Tag ${cleanUid} | Content: ${tagContent}`);
+
+  res.json({ 
+    success: true, 
+    uid: cleanUid, 
+    content: tagContent,
+    pendingWrite: pendingWrite // Send pending write to ESP32 if available
+  });
+});
+
+// Queue a new custom text or URL to write to tag
+app.post('/api/admin/write-queue', (req, res) => {
+  const { content } = req.body;
+  pendingWrite = content || null;
+  if (pendingWrite) {
+    addEvent('QUEUE_WRITE', `Admin queued write: "${pendingWrite}"`);
+  }
+  res.json({ success: true, pendingWrite });
+});
+
+// Check if any pending write exists
+app.get('/api/admin/write-queue', (req, res) => {
+  res.json({ pendingWrite });
 });
 
 // Voucher redemption

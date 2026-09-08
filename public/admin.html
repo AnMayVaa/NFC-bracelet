@@ -158,6 +158,31 @@
           🚀 Register & Issue AuraBeads Bracelet
         </button>
       </form>
+
+      <!-- NFC Memory Read & Write Tool -->
+      <div style="margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--border-subtle);">
+        <h4 style="font-size: 0.9rem; margin-bottom: 8px; color: var(--color-gold); display: flex; align-items: center; gap: 6px;">
+          <span>📖</span> Tag Memory: Read & Write
+        </h4>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px;">
+          Last Scanned Tag UID: <b id="displayReadUid" style="color: var(--color-tangerine); font-family: monospace;">None</b>
+        </div>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">Current Content Read from Tag:</div>
+        <div id="displayTagContent" style="background:#000; border:1px solid var(--border-subtle); padding:10px; border-radius:6px; font-family:monospace; font-size:0.75rem; color:var(--color-haenyeo-teal); word-break:break-all; min-height:36px; margin-bottom:12px;">
+          (Hold tag near PN532 to read memory contents...)
+        </div>
+
+        <div class="form-group">
+          <label style="color: var(--color-gold); font-size: 0.78rem;">✍️ Write Custom Content / URL to Tag:</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="customWriteContent" placeholder="https://... or text message" style="font-size:0.8rem;">
+            <button type="button" class="btn-edit" id="btnSaveWriteQueue" style="white-space:nowrap; background:var(--color-tangerine); color:#fff; border:none; padding:8px 12px;">Queue Write</button>
+          </div>
+          <div id="writeStatusMsg" style="font-size:0.72rem; color:var(--color-green); margin-top:4px; display:none;">
+            ✅ Queued! Tap tag on PN532 or type W:content in Serial to burn.
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Right Column: Live Trail Monitor & Tag Inventory -->
@@ -240,7 +265,9 @@
           if (data.lastScan && data.lastScan.timestamp > lastHandledScanTimestamp) {
             lastHandledScanTimestamp = data.lastScan.timestamp;
             adminUid.value = data.lastScan.uid;
-            logEvent(`🔍 PN532 SCAN: Tag [${data.lastScan.uid}] detected!`);
+            document.getElementById('displayReadUid').textContent = data.lastScan.uid;
+            document.getElementById('displayTagContent').textContent = data.lastScan.content || '(Blank / Unformatted)';
+            logEvent(`🔍 PN532 READ: Tag [${data.lastScan.uid}] ➔ "${data.lastScan.content || 'N/A'}"`);
             adminUid.style.border = '2px solid var(--color-tangerine)';
             setTimeout(() => { adminUid.style.border = ''; }, 2000);
           }
@@ -346,6 +373,30 @@
     });
 
     btnRefreshList.addEventListener('click', loadTourists);
+
+    // Handle Custom Write Queue
+    document.getElementById('btnSaveWriteQueue').addEventListener('click', async () => {
+      const content = document.getElementById('customWriteContent').value.trim();
+      if (!content) {
+        alert('Please enter a URL or text to write to the tag.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/admin/write-queue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content })
+        });
+        if (res.ok) {
+          const msg = document.getElementById('writeStatusMsg');
+          msg.style.display = 'block';
+          logEvent(`Queued custom write: "${content}"`);
+          setTimeout(() => { msg.style.display = 'none'; }, 4000);
+        }
+      } catch (err) {
+        alert('Error queuing write: ' + err.message);
+      }
+    });
 
     // WebSocket & Polling Setup for live monitoring
     function setupAdminWS() {
