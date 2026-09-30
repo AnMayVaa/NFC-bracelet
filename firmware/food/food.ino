@@ -15,9 +15,11 @@
     Offline          : two quick beeps (tap is queued and sent when Wi-Fi is back)
     Error            : low buzz
 
-  Wi-Fi
-    Tries every network in secrets.h (BUNDAOBUNTAI, OhmPatumwan) and keeps the
-    strongest. Reconnects by itself if the hotspot drops.
+  Wi-Fi (see wifi_setup.h)
+    Goes back to the network used last time, then tries the others it knows
+    (secrets.h: BUNDAOBUNTAI, OhmPatumwan). Reconnects by itself if the hotspot drops.
+    Pick one by hand: type "scan" then "join 2" in the Serial Monitor, or hold BOOT
+    at power-on and use the phone setup page (Wi-Fi "WishBand-food", pw wishband123).
 
   Setup
     1. Copy secrets.example.h to secrets.h in this folder and fill it in.
@@ -43,7 +45,6 @@
 
 // ---------------------------------------------------------------- includes
 #include <WiFi.h>
-#include <WiFiMulti.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 
@@ -53,6 +54,7 @@
   #warning "secrets.h not found: using secrets.example.h (copy it to secrets.h and fill in your Wi-Fi)"
   #include "secrets.example.h"
 #endif
+#include "wifi_setup.h"
 
 #if USE_PN532
   #include <Wire.h>
@@ -72,7 +74,6 @@
 #define LED_PIN    2
 
 // ---------------------------------------------------------------- state
-WiFiMulti wifiMulti;
 const char* WIFI_SSIDS[] = WIFI_SSID_LIST;
 const int WIFI_COUNT = sizeof(WIFI_SSIDS) / sizeof(WIFI_SSIDS[0]);
 
@@ -87,7 +88,6 @@ int pendingCount = 0;
 unsigned long lastFlush = 0;
 unsigned long lastHeartbeat = 0;
 const unsigned long HEARTBEAT_MS = 60000;
-bool wasOnline = false;
 
 // ---------------------------------------------------------------- sounds
 void beep(int freq, int ms) { tone(BUZZER_PIN, freq, ms); delay(ms + 20); }
@@ -99,41 +99,18 @@ void soundQueued()  { digitalWrite(LED_PIN, HIGH); beep(2400, 60); beep(2400, 60
 void soundError()   { digitalWrite(LED_PIN, HIGH); beep(700, 380); digitalWrite(LED_PIN, LOW); }
 
 // ---------------------------------------------------------------- Wi-Fi
-void reportWifi() {
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("✅ Wi-Fi: %s  IP: %s  RSSI: %d dBm\n",
-                  WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
-  } else {
-    Serial.println("⚠️ No Wi-Fi yet. Taps will be queued and sent later.");
-  }
-}
-
 void setupWifi() {
-  WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
-  for (int i = 0; i < WIFI_COUNT; i++) {
-    wifiMulti.addAP(WIFI_SSIDS[i], WIFI_PASSWORD);
-    Serial.printf("   Wi-Fi option %d: %s\n", i + 1, WIFI_SSIDS[i]);
-  }
-  Serial.print("Connecting");
-  for (int i = 0; i < 20 && wifiMulti.run(1000) != WL_CONNECTED; i++) Serial.print(".");
-  Serial.println();
-  reportWifi();
+  for (int i = 0; i < WIFI_COUNT; i++) WifiSetup::addBuiltIn(WIFI_SSIDS[i], WIFI_PASSWORD);
+  WifiSetup::begin("WishBand-" STATION_ID);
 }
 
-// Keeps Wi-Fi alive; call often. Returns true when online.
-unsigned long lastWifiTry = 0;
-bool ensureWifi() {
-  bool online = WiFi.status() == WL_CONNECTED;
-  if (!online && millis() - lastWifiTry > 5000) {   // scanning blocks ~2 s, so not every loop
-    lastWifiTry = millis();
-    online = wifiMulti.run(1500) == WL_CONNECTED;
-  }
-  if (online != wasOnline) {
-    wasOnline = online;
-    reportWifi();
-  }
-  return online;
+bool ensureWifi() { return WifiSetup::loop(); }
+
+void handleSerial() {
+  if (!Serial.available()) return;
+  String cmd = Serial.readStringUntil('\n');
+  if (!WifiSetup::handleCommand(cmd) && cmd.length() > 1)
+    Serial.println("Commands: scan | join <n> [password] | join Name,password | saved | forget | portal | wifi");
 }
 
 // ---------------------------------------------------------------- HTTP
@@ -258,10 +235,11 @@ void setup() {
   setupReader();
   setupWifi();
   if (WiFi.status() == WL_CONNECTED) { soundStamp(); sendHeartbeat(); lastHeartbeat = millis(); }
-  Serial.println("\n👉 Ready. Tap a wish-band!\n");
+  Serial.println("\n👉 Ready. Tap a wish-band! (type \"help\" for Wi-Fi commands)\n");
 }
 
 void loop() {
+  handleSerial();
   bool online = ensureWifi();
 
   // LED breathes slowly while offline so staff can see it

@@ -2,7 +2,8 @@
 // secrets.h is in .gitignore, so your Wi-Fi password never goes to GitHub.
 #pragma once
 
-// Every network listed here is tried; the strongest one wins.
+// Networks tried at boot (the one you used last goes first; more can be added
+// from the Serial Monitor with "scan" / "join", or the phone setup page).
 #define WIFI_SSID_LIST { "YOUR_WIFI_1", "YOUR_WIFI_2" }
 #define WIFI_PASSWORD  "YOUR_PASSWORD"            // same password for all networks above
 

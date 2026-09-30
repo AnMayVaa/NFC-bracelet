@@ -15,11 +15,12 @@
 
   Serial Monitor commands (115200 baud)
     W:<text or url>   queue a one-off write for the next tag
-    S                 print Wi-Fi status
+    scan / join <n>   pick a Wi-Fi network by hand (see wifi_setup.h, "help" lists all)
 
-  Wi-Fi
-    Tries every network in secrets.h (BUNDAOBUNTAI, OhmPatumwan) and keeps the
-    strongest. Reconnects by itself if the hotspot drops.
+  Wi-Fi (see wifi_setup.h)
+    Goes back to the network used last time, then tries the others it knows
+    (secrets.h: BUNDAOBUNTAI, OhmPatumwan). Reconnects by itself if the hotspot drops.
+    Hold BOOT at power-on for the phone setup page (Wi-Fi "WishBand-admin", pw wishband123).
 
   PN532 wiring (DIP switches: SEL0 = OFF, SEL1 = ON for I2C)
     VCC -> 3V3 (or 5V)   GND -> GND   SDA -> GPIO 21   SCL -> GPIO 22
@@ -32,7 +33,6 @@
 #define FW_VERSION "2.0.0"
 
 #include <WiFi.h>
-#include <WiFiMulti.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <Wire.h>
@@ -44,6 +44,7 @@
   #warning "secrets.h not found: using secrets.example.h (copy it to secrets.h and fill in your Wi-Fi)"
   #include "secrets.example.h"
 #endif
+#include "wifi_setup.h"
 
 #define SDA_PIN    21
 #define SCL_PIN    22
@@ -51,7 +52,6 @@
 #define LED_PIN    2
 
 Adafruit_PN532 nfc(SDA_PIN, SCL_PIN);
-WiFiMulti wifiMulti;
 const char* WIFI_SSIDS[] = WIFI_SSID_LIST;
 const int WIFI_COUNT = sizeof(WIFI_SSIDS) / sizeof(WIFI_SSIDS[0]);
 
@@ -59,9 +59,7 @@ String lastUid = "";
 unsigned long lastTapAt = 0;
 const unsigned long DEBOUNCE_MS = 2500;
 String serialQueued = "";            // from "W:" command
-unsigned long lastWifiTry = 0;
 unsigned long lastHeartbeat = 0;
-bool wasOnline = false;
 
 const int MAX_CONTENT = 100;         // fits NTAG213 (144 bytes user memory)
 
@@ -72,35 +70,12 @@ void soundRead()  { digitalWrite(LED_PIN, HIGH); beep(2600, 70); digitalWrite(LE
 void soundError() { digitalWrite(LED_PIN, HIGH); beep(700, 380); digitalWrite(LED_PIN, LOW); }
 
 // ---------------------------------------------------------------- Wi-Fi
-void reportWifi() {
-  if (WiFi.status() == WL_CONNECTED)
-    Serial.printf("✅ Wi-Fi: %s  IP: %s  RSSI: %d dBm\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
-  else
-    Serial.println("⚠️ Wi-Fi offline. Tags are still written with the default link.");
-}
-
 void setupWifi() {
-  WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
-  for (int i = 0; i < WIFI_COUNT; i++) {
-    wifiMulti.addAP(WIFI_SSIDS[i], WIFI_PASSWORD);
-    Serial.printf("   Wi-Fi option %d: %s\n", i + 1, WIFI_SSIDS[i]);
-  }
-  Serial.print("Connecting");
-  for (int i = 0; i < 20 && wifiMulti.run(1000) != WL_CONNECTED; i++) Serial.print(".");
-  Serial.println();
-  reportWifi();
+  for (int i = 0; i < WIFI_COUNT; i++) WifiSetup::addBuiltIn(WIFI_SSIDS[i], WIFI_PASSWORD);
+  WifiSetup::begin("WishBand-admin");
 }
 
-bool ensureWifi() {
-  bool online = WiFi.status() == WL_CONNECTED;
-  if (!online && millis() - lastWifiTry > 5000) {
-    lastWifiTry = millis();
-    online = wifiMulti.run(1500) == WL_CONNECTED;
-  }
-  if (online != wasOnline) { wasOnline = online; reportWifi(); }
-  return online;
-}
+bool ensureWifi() { return WifiSetup::loop(); }
 
 // ---------------------------------------------------------------- HTTP
 int request(const char* method, const String& path, const String& body, String& response) {
@@ -299,7 +274,7 @@ void setup() {
 
   setupWifi();
   if (WiFi.status() == WL_CONNECTED) soundOk();
-  Serial.println("\n👉 Ready. Tap a new wish-band. Type W:<text> to queue a custom write.\n");
+  Serial.println("\n👉 Ready. Tap a new wish-band. Type W:<text> to queue a custom write, \"help\" for Wi-Fi.\n");
 }
 
 void loop() {
@@ -313,8 +288,8 @@ void loop() {
     if (cmd.startsWith("W:") || cmd.startsWith("w:")) {
       serialQueued = cmd.substring(2);
       Serial.printf("✍️ Next tag will get: \"%s\"\n", serialQueued.c_str());
-    } else if (cmd.equalsIgnoreCase("S")) {
-      reportWifi();
+    } else if (!WifiSetup::handleCommand(cmd) && cmd.length() > 1) {
+      Serial.println("Commands: W:<text> | scan | join <n> [password] | join Name,password | saved | forget | portal | wifi");
     }
   }
 

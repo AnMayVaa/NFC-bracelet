@@ -97,8 +97,25 @@ Old firmware ids `checkpoint1` / `checkpoint2` still work (they map to `place` /
 Each folder is a normal Arduino sketch. Board: **ESP32 Dev Module**, 115200 baud. Libraries: **MFRC522** (GithubCommunity) and **Adafruit PN532**.
 
 1. In each sketch folder, copy `secrets.example.h` to `secrets.h` and fill in Wi-Fi. `secrets.h` is git-ignored.
-2. List every hotspot in `WIFI_SSID_LIST`. The ESP32 joins the strongest one and reconnects on its own if it drops.
-3. Flash `admin` to the desk ESP32, and `food`, `place`, `activity` to the three stations.
+2. Flash `admin` to the desk ESP32, and `food`, `place`, `activity` to the three stations.
+
+### Wi-Fi (`wifi_setup.h`, same file in every sketch)
+
+- At boot the ESP32 scans and joins the network it **used last** (saved in flash), then tries the other remembered ones, then everything in `WIFI_SSID_LIST` (BUNDAOBUNTAI, OhmPatumwan).
+- If Wi-Fi drops it keeps retrying in the background, and tag reading keeps working.
+- **Pick a network by hand in the Serial Monitor** (115200, Newline):
+
+  | Command | Does |
+  | :--- | :--- |
+  | `scan` | list networks in range (★ = known) |
+  | `join 2` | join #2 from the list with its saved password |
+  | `join 2 mypassword` | join #2 with this password |
+  | `join MyWifi,mypassword` | join by name |
+  | `saved` / `forget` | show / clear remembered networks |
+  | `portal` / `wifi` | open the phone setup page / show status |
+
+- **Phone setup page**: hold **BOOT** while powering on (or type `portal`, or it opens by itself when no known network is found). Join Wi-Fi `WishBand-<station>` with password `wishband123`, then open http://192.168.4.1, pick a network and tap *Connect & remember*.
+- Every network that connects is remembered (up to 5), newest first.
 
 Station sounds: two rising beeps = new stamp, fanfare = voucher unlocked, one short beep = already stamped (within 60 s), two quick beeps = offline (the tap is queued and sent when Wi-Fi returns), low buzz = error. The LED blinks while offline.
 
