@@ -1,462 +1,533 @@
-// Extract UID from URL query params (e.g. ?uid=BEAD_001) or URL pathname (e.g. /04DBCE42CA2A81)
-const urlParams = new URLSearchParams(window.location.search);
-let currentUid = urlParams.get('uid');
+// Jeju wish-band · tourist app
+// Works from a tag URL (/04DBCE42CA2A81) or ?uid=BEAD_001
 
-if (!currentUid) {
-  const pathSegment = window.location.pathname.replace(/^\/+|\/+$/g, '');
-  if (pathSegment && pathSegment !== 'index.html' && pathSegment !== 'admin.html' && pathSegment !== 'admin') {
-    currentUid = pathSegment;
+// ------------------------------------------------------------------ helpers
+const $ = sel => document.querySelector(sel);
+const $$ = sel => [...document.querySelectorAll(sel)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status });
+  return data;
+}
+
+function toast(msg, kind = '') {
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`;
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+function confetti() {
+  const colors = ['#F28C38', '#2E86AB', '#5E9A62', '#E8B33A', '#D8574A'];
+  for (let i = 0; i < 60; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.background = colors[i % colors.length];
+    c.style.animationDuration = 1.6 + Math.random() * 1.6 + 's';
+    c.style.animationDelay = Math.random() * .4 + 's';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 3800);
   }
 }
 
-if (!currentUid) {
-  currentUid = 'BEAD_001';
-}
-currentUid = currentUid.toUpperCase();
-
-let currentTourist = null;
-let isUvHigh = false;
-let ws = null;
-let pollTimer = null;
-
-// DOM Elements
-const displayTagUid = document.getElementById('displayTagUid');
-const wsStatusText = document.getElementById('wsStatusText');
-const touristName = document.getElementById('touristName');
-const touristCountry = document.getElementById('touristCountry');
-const touristDietary = document.getElementById('touristDietary');
-const touristEmergency = document.getElementById('touristEmergency');
-
-const stampBox1 = document.getElementById('stampBox1');
-const stampStatus1 = document.getElementById('stampStatus1');
-const stampBox2 = document.getElementById('stampBox2');
-const stampStatus2 = document.getElementById('stampStatus2');
-
-const voucherCard = document.getElementById('voucherCard');
-const voucherBadge = document.getElementById('voucherBadge');
-const voucherCodeBox = document.getElementById('voucherCodeBox');
-const voucherDesc = document.getElementById('voucherDesc');
-const btnRedeem = document.getElementById('btnRedeem');
-
-const beadPreview = document.getElementById('beadPreview');
-const uvStatusTitle = document.getElementById('uvStatusTitle');
-const uvStatusDesc = document.getElementById('uvStatusDesc');
-
-// Edit Modal Elements
-const editModal = document.getElementById('editModal');
-const btnOpenEditModal = document.getElementById('btnOpenEditModal');
-const btnCancelEdit = document.getElementById('btnCancelEdit');
-const btnSaveEdit = document.getElementById('btnSaveEdit');
-
-const inputName = document.getElementById('inputName');
-const inputCountry = document.getElementById('inputCountry');
-const selectLanguage = document.getElementById('selectLanguage');
-const inputDietary = document.getElementById('inputDietary');
-const inputEmergency = document.getElementById('inputEmergency');
-
-// Simulator Elements
-const btnSimCP1 = document.getElementById('btnSimCP1');
-const btnSimCP2 = document.getElementById('btnSimCP2');
-const btnSimUV = document.getElementById('btnSimUV');
-const btnSwitchTag = document.getElementById('btnSwitchTag');
-const btnSimReset = document.getElementById('btnSimReset');
-
-// Initialize
-async function init() {
-  displayTagUid.textContent = `UID: ${currentUid}`;
-  await fetchTouristData();
-  setupSync();
-  setupEventListeners();
-}
-
-// Fetch Tourist Data from Backend
-async function fetchTouristData() {
+function chime(type) {
   try {
-    const res = await fetch(`/api/tourist/${currentUid}`);
-    if (res.ok) {
-      const updated = await res.json();
-      const hadCp1 = currentTourist?.stamps?.checkpoint1;
-      const hadCp2 = currentTourist?.stamps?.checkpoint2;
-      currentTourist = updated;
-      renderUI();
-      if ((!hadCp1 && updated?.stamps?.checkpoint1) || (!hadCp2 && updated?.stamps?.checkpoint2)) {
-        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-        if (updated?.stamps?.checkpoint1 && updated?.stamps?.checkpoint2) {
-          playChime('voucher');
-        } else {
-          playChime('stamp');
-        }
-      }
-    } else {
-      console.warn('Tag not found, creating new profile...');
-      const registerRes = await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uid: currentUid,
-          name: `Guest (${currentUid})`,
-          country: 'South Korea',
-          language: 'Korean',
-          dietary: 'None',
-          emergencyContact: '+82 10-0000-0000'
-        })
-      });
-      const data = await registerRes.json();
-      currentTourist = data.tourist;
-      renderUI();
-    }
-  } catch (err) {
-    console.error('Failed to fetch tourist profile:', err);
-  }
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = type === 'voucher' ? [523.25, 659.25, 783.99, 1046.5] : [587.33, 880];
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + i * .11;
+      o.type = type === 'voucher' ? 'triangle' : 'sine';
+      o.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(.22, t);
+      g.gain.exponentialRampToValueAtTime(.001, t + .35);
+      o.connect(g).connect(ctx.destination);
+      o.start(t); o.stop(t + .35);
+    });
+  } catch (_) {}
+  if (navigator.vibrate) navigator.vibrate(type === 'voucher' ? [80, 40, 80, 40, 160] : [90, 50, 90]);
 }
 
-// Render UI based on current tourist state
-function renderUI() {
-  if (!currentTourist) return;
+function timeAgo(iso) {
+  if (!iso) return '';
+  const s = Math.round((Date.now() - Date.parse(iso)) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return new Date(iso).toLocaleDateString();
+}
 
-  displayTagUid.textContent = `UID: ${currentTourist.uid}`;
-  touristName.textContent = currentTourist.name;
-  touristCountry.textContent = `${currentTourist.country} • ${currentTourist.language}`;
-  touristDietary.textContent = currentTourist.dietary || 'None';
-  touristEmergency.textContent = currentTourist.emergencyContact || 'Not Set';
+// ------------------------------------------------------------------ state
+function readUid() {
+  const q = new URLSearchParams(location.search).get('uid');
+  const path = location.pathname.replace(/^\/+|\/+$/g, '');
+  const fromPath = path && !/\.(html?|js|css)$/.test(path) && path !== 'admin' ? path : '';
+  return (q || fromPath || 'BEAD_001').toUpperCase();
+}
 
-  // Checkpoint 1 (Seongsan Sunrise Peak)
-  if (currentTourist.stamps && currentTourist.stamps.checkpoint1) {
-    stampBox1.classList.add('active');
-    stampStatus1.textContent = '✅ Stamped (Dol Hareubang)';
+const state = {
+  uid: readUid(),
+  config: null,
+  tourist: null,
+  category: 'all',
+  origin: null,        // phone GPS if the tourist allowed it
+  recs: [],
+  sunOnBead: false,
+  map: null
+};
+
+const DIET_TAGS = { TAG_HALAL: 'Halal', TAG_VEGAN: 'Vegan', TAG_VEGETARIAN: 'Vegetarian', TAG_NO_SHELLFISH: 'No Shellfish', TAG_GLUTEN_FREE: 'Gluten-Free' };
+const HELP_ICONS = { hospital: '🏥', police: '👮', info: 'ℹ️' };
+
+// ------------------------------------------------------------------ rendering
+function renderProfile() {
+  const t = state.tourist;
+  if (!t) return;
+  const first = (t.name || 'traveler').split(/[\s(]/)[0];
+  $('#greetName').textContent = `Hello, ${first}!`;
+  $('#uidTag').textContent = `wish-band ${t.uid}`;
+  $('#meName').textContent = t.name;
+  $('#meFrom').textContent = `${t.country || 'Somewhere lovely'} · ${t.language || 'English'}`;
+  $('#meDiet').textContent = t.dietary && t.dietary !== 'None' ? t.dietary : 'No restrictions';
+  $('#meSos').textContent = t.emergencyContact || 'Not set yet';
+  $('#meLang').textContent = t.language || 'English';
+  $('#meDeposit').innerHTML = t.depositPaid ? '<span class="chip leaf">10,000₩ held · refunded on return</span>' : '<span class="chip">None</span>';
+  const loc = t.lastLocation;
+  $('#meLastLoc').textContent = loc
+    ? `📍 Last seen ${loc.source === 'station' ? 'at ' + stationName(loc.station) : 'by phone GPS'} · ${timeAgo(loc.timestamp)}`
+    : 'No location yet. Tap a station or share your GPS.';
+}
+
+function stationName(id) {
+  return state.config?.stations.find(s => s.id === id)?.name || id;
+}
+
+function renderStamps(justStamped = []) {
+  const t = state.tourist, cfg = state.config;
+  if (!t || !cfg) return;
+  $('#stamps').innerHTML = cfg.stations.map(s => {
+    const on = t.stamps?.[s.id];
+    const k = cfg.kinds[s.kind];
+    return `<div class="stamp ${s.kind} ${on ? 'on' : ''} ${justStamped.includes(s.id) ? 'just' : ''}">
+      <div class="ring">${k.emoji}</div>
+      <div class="kind">${esc(k.label)} · ${esc(k.label_ko)}</div>
+      <div class="name">${esc(s.name)}</div>
+    </div>`;
+  }).join('');
+  const got = cfg.stations.filter(s => t.stamps?.[s.id]).length;
+  $('#progressBar').style.width = `${(got / cfg.stations.length) * 100}%`;
+  $('#progressText').textContent = `${got} / ${cfg.stations.length} stamps`;
+  $('.nav [data-view="stamps"] .i').textContent = got === cfg.stations.length ? '🎉' : '🗿';
+
+  const history = [...(t.checkinHistory || [])].reverse().slice(0, 12);
+  $('#timeline').innerHTML = history.length
+    ? history.map(h => `<li><span>${cfg.kinds[h.kind]?.emoji || '📍'}</span>${esc(stationName(h.station))}${h.visitSequence > 1 ? ` <span class="chip">visit ${h.visitSequence}</span>` : ''}<span class="t">${timeAgo(h.timestamp)}</span></li>`).join('')
+    : '<li class="muted">No taps yet. Find a wish-band station and tap your bracelet!</li>';
+
+  renderVoucher();
+}
+
+function renderVoucher() {
+  const v = state.tourist?.voucher || { status: 'LOCKED' };
+  const box = $('#voucher');
+  box.classList.toggle('unlocked', v.status === 'UNLOCKED');
+  box.classList.toggle('used', v.status === 'REDEEMED' || v.status === 'EXPIRED');
+  const qr = $('#voucherQr');
+  const btn = $('#btnRedeem');
+  if (v.status === 'UNLOCKED') {
+    $('#voucherBadge').textContent = '🎉 Ready to use';
+    $('#voucherCode').textContent = v.code;
+    $('#voucherDesc').textContent = `Valid until ${new Date(v.expiresAt).toLocaleDateString()}. Show this at any participating Dongmun Market stall.`;
+    qr.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=${encodeURIComponent(v.code)}`;
+    qr.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Show to merchant';
+  } else if (v.status === 'REDEEMED') {
+    $('#voucherBadge').textContent = '✅ Used';
+    $('#voucherCode').textContent = v.code || 'USED';
+    $('#voucherDesc').textContent = `Enjoyed on ${new Date(v.redeemedAt || Date.now()).toLocaleString()}. Thank you for supporting local vendors!`;
+    qr.classList.add('hidden');
+    btn.disabled = true;
+    btn.textContent = 'Voucher used';
+  } else if (v.status === 'EXPIRED') {
+    $('#voucherBadge').textContent = 'Expired';
+    qr.classList.add('hidden');
+    btn.disabled = true;
   } else {
-    stampBox1.classList.remove('active');
-    stampStatus1.textContent = 'Not Visited';
-  }
-
-  // Checkpoint 2 (Dongmun Market)
-  if (currentTourist.stamps && currentTourist.stamps.checkpoint2) {
-    stampBox2.classList.add('active');
-    stampStatus2.textContent = '✅ Stamped (Dol Hareubang)';
-  } else {
-    stampBox2.classList.remove('active');
-    stampStatus2.textContent = 'Not Visited';
-  }
-
-  // Voucher Card State
-  if (currentTourist.voucher) {
-    if (currentTourist.voucher.redeemed) {
-      voucherCard.classList.remove('unlocked');
-      voucherCard.classList.add('redeemed');
-      voucherBadge.textContent = 'Redeemed';
-      voucherBadge.style.backgroundColor = '#6B7280';
-      voucherCodeBox.textContent = 'REDEEMED AT MARKET';
-      voucherDesc.textContent = `Voucher was used at Dongmun Traditional Market on ${new Date(currentTourist.voucher.redeemedAt || Date.now()).toLocaleTimeString()}`;
-      btnRedeem.disabled = true;
-      btnRedeem.textContent = 'Voucher Used';
-    } else if (currentTourist.voucher.unlocked) {
-      voucherCard.classList.add('unlocked');
-      voucherCard.classList.remove('redeemed');
-      voucherBadge.textContent = '🎉 Unlocked & Ready!';
-      voucherBadge.style.backgroundColor = 'var(--color-green)';
-      voucherCodeBox.textContent = currentTourist.voucher.code || 'JEJU-4000-REWARD';
-      voucherDesc.textContent = 'Show this coupon to any participating vendor at Dongmun Market for 4,000 KRW off your local purchases!';
-      btnRedeem.disabled = false;
-      btnRedeem.textContent = '🎁 Redeem 4,000₩ at Dongmun Market';
-    } else {
-      voucherCard.classList.remove('unlocked', 'redeemed');
-      voucherBadge.textContent = 'Locked (0/2 Stamps)';
-      if (currentTourist.stamps.checkpoint1 || currentTourist.stamps.checkpoint2) {
-        voucherBadge.textContent = '1/2 Stamps Collected';
-      }
-      voucherBadge.style.backgroundColor = '#374151';
-      voucherCodeBox.textContent = '•••• - •••• - ••••';
-      voucherDesc.textContent = 'Complete both Olle checkpoints with your AuraBeads to unlock a 4,000 won coupon at Dongmun Traditional Market!';
-      btnRedeem.disabled = true;
-      btnRedeem.textContent = 'Locked';
-    }
+    const got = Object.values(state.tourist?.stamps || {}).filter(Boolean).length;
+    $('#voucherBadge').textContent = `🔒 ${got} / ${state.config?.stations.length || 3} stamps`;
+    $('#voucherCode').textContent = '•••• •••• ••••';
+    $('#voucherDesc').textContent = 'Collect a food, place and activity stamp to unlock.';
+    qr.classList.add('hidden');
+    btn.disabled = true;
+    btn.textContent = 'Locked';
   }
 }
 
-// Web Audio Synthesizer Chime for Olle Trail Checkpoint stamps & rewards
-function playChime(type) {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const now = ctx.currentTime;
-
-    if (type === 'stamp') {
-      // 2-tone chime: D5 (587.33Hz) -> A5 (880Hz)
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, now);
-      osc.frequency.setValueAtTime(880, now + 0.12);
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.4);
-    } else if (type === 'voucher') {
-      // 4-tone victory arpeggio: C5 -> E5 -> G5 -> C6
-      const notes = [523.25, 659.25, 783.99, 1046.50];
-      notes.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        const start = now + i * 0.1;
-        osc.frequency.setValueAtTime(freq, start);
-        gain.gain.setValueAtTime(0.25, start);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(start);
-        osc.stop(start + 0.35);
-      });
-    }
-  } catch (e) {
-    console.warn('Audio playback error:', e);
+function renderRecs(data) {
+  if (data) {
+    state.recs = data.recommendations || [];
+    $('#uvNum').textContent = data.uvIndex ?? '–';
+    const uv = data.uvIndex ?? 0;
+    $('#uvLabel').textContent = uv >= 8 ? 'Very high UV' : uv >= 6 ? 'High UV' : uv >= 3 ? 'Moderate UV' : 'Low UV';
+    $('#uvAdvice').textContent = data.advice + (data.uvSource === 'fallback' ? ' (estimate)' : '');
+    if (!state.sunOnBead) $('#bead').classList.toggle('sun', uv >= 3);
   }
-}
-
-// Dual Real-time Sync: WebSockets + Serverless Cloud Polling Fallback
-function setupSync() {
-  const isVercel = window.location.hostname.includes('vercel.app');
-
-  // If on Vercel, serverless functions don't support persistent WS -> use Smart Cloud Polling immediately
-  if (isVercel) {
-    startPolling();
+  const list = $('#recList');
+  if (!state.recs.length) {
+    list.innerHTML = `<div class="empty"><div class="big">🌿</div>Nothing safe to suggest in this category yet.<br>Try another tab or update your diet in <b>Me</b>.</div>`;
     return;
   }
+  list.innerHTML = state.recs.slice(0, 8).map((r, i) => `
+    <div class="rec ${i === 0 ? 'top' : ''}" data-id="${esc(r.id)}">
+      <div class="ico ${r.category}">${r.emoji || '📍'}</div>
+      <div class="body">
+        ${i === 0 ? '<div class="badge-top">★ Best match right now</div>' : ''}
+        <div class="title">${esc(r.title)} <span class="ko">${esc(r.title_ko || '')}</span></div>
+        <div class="note">${esc(r.note || '')}</div>
+        <div class="reasons">${(r.reasons || []).map(x => `<span class="chip ${r.category === 'food' ? 'tan' : r.category === 'place' ? 'sea' : 'leaf'}">${esc(x)}</span>`).join('')}</div>
+      </div>
+      <button class="btn small go" data-go="${esc(r.id)}">Go</button>
+    </div>`).join('');
+}
 
-  // Otherwise try WebSocket (for local server)
-  try {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${protocol}//${window.location.host}`);
+// ------------------------------------------------------------------ data loading
+async function loadTourist({ celebrate = true } = {}) {
+  const before = state.tourist;
+  const t = await api(`/api/tourist/${encodeURIComponent(state.uid)}`);
+  state.tourist = t;
 
-    ws.onopen = () => {
-      wsStatusText.textContent = 'Live Cloud Synced';
-      wsStatusText.parentElement.querySelector('.pulse-dot').style.backgroundColor = 'var(--color-green)';
-    };
+  const newStamps = before ? Object.keys(t.stamps || {}).filter(k => t.stamps[k] && !before.stamps?.[k]) : [];
+  const voucherJustUnlocked = before && before.voucher?.status === 'LOCKED' && t.voucher?.status === 'UNLOCKED';
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.event === 'CHECKIN_EVENT' && data.payload.uid === currentUid) {
-          const hadCp1 = currentTourist?.stamps?.checkpoint1;
-          const hadCp2 = currentTourist?.stamps?.checkpoint2;
-          currentTourist = data.payload.tourist;
-          renderUI();
-          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-          if ((!hadCp1 && currentTourist?.stamps?.checkpoint1) || (!hadCp2 && currentTourist?.stamps?.checkpoint2)) {
-            if (currentTourist?.stamps?.checkpoint1 && currentTourist?.stamps?.checkpoint2) {
-              playChime('voucher');
-            } else {
-              playChime('stamp');
-            }
-          }
-        } else if (data.event === 'PROFILE_UPDATED' && data.payload.uid === currentUid) {
-          currentTourist = data.payload;
-          renderUI();
-        } else if (data.event === 'VOUCHER_REDEEMED' && data.payload.uid === currentUid) {
-          currentTourist = data.payload.tourist;
-          renderUI();
-        } else if (data.event === 'RESET_EVENT') {
-          if (data.payload.uid === 'ALL' || data.payload.uid === currentUid) {
-            fetchTouristData();
-          }
-        }
-      } catch (e) {
-        console.error('Error handling WS message:', e);
-      }
-    };
+  renderProfile();
+  renderStamps(newStamps);
+  renderSos(t.activeSos);
 
-    ws.onerror = () => startPolling();
-    ws.onclose = () => startPolling();
-  } catch (e) {
-    startPolling();
+  if (celebrate && newStamps.length) {
+    chime(voucherJustUnlocked ? 'voucher' : 'stamp');
+    toast(voucherJustUnlocked ? '🎉 All stamps! Your market voucher is unlocked' : `🗿 New stamp: ${stationName(newStamps[0])}`, 'good');
+    if (voucherJustUnlocked) confetti();
+    loadRecs();
   }
 }
 
-// Fast Smart Polling (Runs every 1.5 seconds when deployed on Vercel)
+async function loadRecs() {
+  const q = new URLSearchParams({ uid: state.uid, category: state.category });
+  if (state.origin) { q.set('lat', state.origin.lat); q.set('lng', state.origin.lng); }
+  try {
+    renderRecs(await api(`/api/recommendations?${q}`));
+  } catch (e) {
+    $('#recList').innerHTML = `<div class="empty"><div class="big">📡</div>Could not load suggestions.<br>${esc(e.message)}</div>`;
+  }
+}
+
+// ------------------------------------------------------------------ live sync
+function setLive(on, text) {
+  $('#live').classList.toggle('on', on);
+  $('#liveText').textContent = text;
+}
+
+let pollTimer = null;
 function startPolling() {
   if (pollTimer) return;
-  wsStatusText.textContent = 'Cloud Active (1.5s)';
-  wsStatusText.parentElement.querySelector('.pulse-dot').style.backgroundColor = 'var(--color-green)';
-
-  pollTimer = setInterval(async () => {
-    try {
-      const res = await fetch(`/api/tourist/${currentUid}`);
-      if (res.ok) {
-        const updated = await res.json();
-        const oldJson = JSON.stringify(currentTourist);
-        const newJson = JSON.stringify(updated);
-        if (oldJson !== newJson) {
-          const hadCp1 = currentTourist?.stamps?.checkpoint1;
-          const hadCp2 = currentTourist?.stamps?.checkpoint2;
-          currentTourist = updated;
-          renderUI();
-          if ((!hadCp1 && updated?.stamps?.checkpoint1) || (!hadCp2 && updated?.stamps?.checkpoint2)) {
-            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-            if (updated?.stamps?.checkpoint1 && updated?.stamps?.checkpoint2) {
-              playChime('voucher');
-            } else {
-              playChime('stamp');
-            }
-          }
-        }
-      }
-    } catch (e) {}
-  }, 1500);
+  setLive(true, 'Live');
+  pollTimer = setInterval(() => loadTourist().catch(() => setLive(false, 'Offline')), 2500);
 }
 
-// Event Listeners
-function setupEventListeners() {
-  // Modal Open
-  btnOpenEditModal.addEventListener('click', () => {
-    if (!currentTourist) return;
-    inputName.value = currentTourist.name || '';
-    inputCountry.value = currentTourist.country || '';
-    selectLanguage.value = currentTourist.language || 'English';
-    inputDietary.value = currentTourist.dietary || '';
-    inputEmergency.value = currentTourist.emergencyContact || '';
-    editModal.classList.add('open');
+function startSync() {
+  if (location.hostname.endsWith('vercel.app')) return startPolling();
+  try {
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
+    ws.onopen = () => setLive(true, 'Live');
+    ws.onmessage = ev => {
+      const { event, payload } = JSON.parse(ev.data);
+      const uid = payload?.uid || payload?.tourist?.uid;
+      if (event === 'CONNECTED') return;
+      if (uid === state.uid || uid === 'ALL') loadTourist();
+    };
+    ws.onclose = ws.onerror = () => startPolling();
+  } catch (_) { startPolling(); }
+}
+
+// ------------------------------------------------------------------ map
+function initMap() {
+  if (state.map) return;
+  if (!window.L) { $('#map').innerHTML = '<div class="empty"><div class="big">🗺️</div>Map could not load. The help list below still works.</div>'; return; }
+  const cfg = state.config;
+  const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([33.39, 126.55], 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
+  const pin = (emoji, color) => L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -30],
+    html: `<div class="pin" style="background:${color}"><span>${emoji}</span></div>` });
+
+  for (const s of cfg.stations) {
+    const k = cfg.kinds[s.kind];
+    const done = state.tourist?.stamps?.[s.id];
+    L.marker([s.lat, s.lng], { icon: pin(done ? '✅' : k.emoji, k.color) }).addTo(map)
+      .bindPopup(`<b>${esc(s.name)}</b><br>${esc(s.name_ko)}<br>${esc(k.label)} station${done ? ' · stamped' : ''}`);
+  }
+  for (const h of cfg.helpPoints) {
+    L.marker([h.lat, h.lng], { icon: pin(HELP_ICONS[h.type] || '🆘', '#D8574A') }).addTo(map)
+      .bindPopup(`<b>${esc(h.name)}</b><br><a href="tel:${esc(h.phone)}">Call ${esc(h.phone)}</a>`);
+  }
+  const me = state.origin || (state.tourist?.lastLocation && { lat: state.tourist.lastLocation.lat, lng: state.tourist.lastLocation.lng });
+  if (me) L.circleMarker([me.lat, me.lng], { radius: 9, color: '#fff', weight: 3, fillColor: '#2E86AB', fillOpacity: 1 }).addTo(map).bindPopup('You (last known)');
+  state.map = map;
+  setTimeout(() => map.invalidateSize(), 150);
+}
+
+function renderHelp() {
+  const cfg = state.config;
+  const hot = cfg.hotlines.map(h => `<a class="hotline" href="tel:${esc(h.number)}"><b>${esc(h.number)}</b><span>${esc(h.label)}</span></a>`).join('');
+  $('#hotlines').innerHTML = hot;
+  $('#sosHotlines').innerHTML = hot;
+  const origin = state.origin || (state.tourist?.lastLocation && { lat: state.tourist.lastLocation.lat, lng: state.tourist.lastLocation.lng });
+  const dist = h => origin ? haversine(origin, h) : null;
+  const items = [...cfg.helpPoints].sort((a, b) => (dist(a) ?? 0) - (dist(b) ?? 0));
+  $('#helpList').innerHTML = items.map(h => {
+    const d = dist(h);
+    return `<div class="help-item"><span class="e">${HELP_ICONS[h.type] || '🆘'}</span>
+      <div><div class="n">${esc(h.name)}</div><div class="d">${d != null ? d.toFixed(1) + ' km · ' : ''}${esc(h.type)}</div></div>
+      <a class="btn small sea" href="tel:${esc(h.phone)}">Call</a></div>`;
+  }).join('');
+}
+
+function haversine(a, b) {
+  const R = 6371, r = x => x * Math.PI / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// ------------------------------------------------------------------ GPS
+function getPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('GPS not available'));
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) }),
+      e => reject(new Error(e.message || 'Location blocked')),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
   });
+}
 
-  // Modal Cancel
-  btnCancelEdit.addEventListener('click', () => {
-    editModal.classList.remove('open');
-  });
+async function shareLocation({ quiet = false } = {}) {
+  try {
+    const pos = await getPosition();
+    state.origin = pos;
+    await api('/api/location', { uid: state.uid, ...pos });
+    if (!quiet) toast('📍 Location saved', 'good');
+    return pos;
+  } catch (e) {
+    if (!quiet) toast(`Location: ${e.message}`, 'warn');
+    return null;
+  }
+}
 
-  // Modal Save (Direct Profile Edit on Phone)
-  btnSaveEdit.addEventListener('click', async () => {
-    btnSaveEdit.disabled = true;
-    btnSaveEdit.textContent = 'Saving...';
+// ------------------------------------------------------------------ SOS
+let activeSos = null;
+function renderSos(alert) {
+  activeSos = alert || null;
+  $('#sosFab').classList.toggle('active', !!activeSos);
+  $('#sosIdle').classList.toggle('hidden', !!activeSos);
+  $('#sosActive').classList.toggle('hidden', !activeSos);
+  if (!activeSos) return;
+  const order = ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED', 'RESOLVED'];
+  const idx = order.indexOf(activeSos.status);
+  $$('.sos-step').forEach((el, i) => el.classList.toggle('on', i <= idx));
+  const loc = activeSos.location;
+  $('#sosDetail').textContent =
+    (activeSos.status === 'DISPATCHED' ? `${activeSos.responder || 'Rescue team'} is coming${activeSos.etaMinutes ? `, about ${activeSos.etaMinutes} min` : ''}. ` : '') +
+    (loc ? `Location sent (${loc.source === 'phone' ? 'phone GPS' : 'last wish-band tap'}).` : 'No location yet, please call 119 as well.');
+}
 
-    try {
-      const payload = {
-        uid: currentUid,
-        name: inputName.value.trim(),
-        country: inputCountry.value.trim(),
-        language: selectLanguage.value,
-        dietary: inputDietary.value.trim(),
-        emergencyContact: inputEmergency.value.trim()
-      };
+function setupHold() {
+  const btn = $('#holdSos'), fill = $('#holdFill');
+  let start = 0, raf = 0;
+  const HOLD_MS = 2000;
+  const stop = () => { cancelAnimationFrame(raf); start = 0; fill.style.transform = 'scaleX(0)'; };
+  const tick = () => {
+    const p = Math.min(1, (performance.now() - start) / HOLD_MS);
+    fill.style.transform = `scaleX(${p})`;
+    if (p >= 1) { stop(); sendSos(); return; }
+    raf = requestAnimationFrame(tick);
+  };
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); start = performance.now(); if (navigator.vibrate) navigator.vibrate(30); tick(); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+}
 
-      const res = await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        currentTourist = data.tourist;
-        renderUI();
-        editModal.classList.remove('open');
-      } else {
-        alert('Failed to update profile');
-      }
-    } catch (err) {
-      alert('Error updating profile: ' + err.message);
-    } finally {
-      btnSaveEdit.disabled = false;
-      btnSaveEdit.textContent = 'Save to Cloud';
-    }
-  });
-
-  // Redeem Voucher
-  btnRedeem.addEventListener('click', async () => {
-    if (!confirm('Dongmun Market Merchant Confirmation:\nAre you ready to redeem this 4,000 KRW voucher?')) return;
-    try {
-      const res = await fetch('/api/redeem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: currentUid })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        currentTourist = data.tourist;
-        renderUI();
-        alert('🎉 Voucher redeemed successfully! 4,000 KRW discount applied.');
-      } else {
-        alert(data.error || 'Failed to redeem voucher');
-      }
-    } catch (err) {
-      alert('Error: ' + err.message);
-    }
-  });
-
-  // Simulator: Checkpoint 1 Tap
-  btnSimCP1.addEventListener('click', async () => {
-    try {
-      await fetch('/api/checkin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: currentUid, station: 'checkpoint1' })
-      });
-      fetchTouristData();
-    } catch (err) {
-      console.error(err);
-    }
-  });
-
-  // Simulator: Checkpoint 2 Tap
-  btnSimCP2.addEventListener('click', async () => {
-    try {
-      await fetch('/api/checkin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: currentUid, station: 'checkpoint2' })
-      });
-      fetchTouristData();
-    } catch (err) {
-      console.error(err);
-    }
-  });
-
-  // Simulator: UV Toggle
-  btnSimUV.addEventListener('click', () => {
-    isUvHigh = !isUvHigh;
-    if (isUvHigh) {
-      beadPreview.classList.add('uv-high');
-      uvStatusTitle.textContent = '⚠️ UV Sensor Bead: High Exposure';
-      uvStatusTitle.style.color = 'var(--color-tangerine)';
-      uvStatusDesc.textContent = 'Bead transitioned to Hallabong Tangerine orange! Strong seaside UV detected. Seek shade or apply sunscreen.';
-    } else {
-      beadPreview.classList.remove('uv-high');
-      uvStatusTitle.textContent = 'UV Sensor Bead: Passive Safe';
-      uvStatusTitle.style.color = 'var(--text-main)';
-      uvStatusDesc.textContent = 'Bead is pearl-white in shade. Expose to seaside sun to see Hallabong tangerine transition.';
-    }
-  });
-
-  // Simulator: Switch Tag UID
-  btnSwitchTag.addEventListener('click', () => {
-    const nextTag = prompt('Enter NFC Tag UID to switch to (e.g. BEAD_001, BEAD_002, or real hardware UID):', currentUid);
-    if (nextTag && nextTag.trim()) {
-      window.location.search = `?uid=${encodeURIComponent(nextTag.trim())}`;
-    }
-  });
-
-  // Simulator: Reset Demo
-  btnSimReset.addEventListener('click', async () => {
-    if (confirm('Reset this demo tag stamps and vouchers?')) {
-      await fetch('/api/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: currentUid })
-      });
-      fetchTouristData();
-    }
-  });
-
-  // Quick Tag Pills
-  document.querySelectorAll('.tag-pill').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const uid = btn.getAttribute('data-uid');
-      if (uid && uid !== currentUid) {
-        window.location.href = `/?uid=${encodeURIComponent(uid)}`;
-      }
+async function sendSos() {
+  if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
+  toast('🚨 Sending SOS…', 'warn');
+  let pos = null;
+  try { pos = await getPosition(); } catch (_) {}
+  try {
+    const r = await api('/api/sos', {
+      uid: state.uid, note: $('#sosNote').value.trim() || undefined,
+      latitude: pos?.lat, longitude: pos?.lng, accuracy: pos?.accuracy
     });
+    renderSos(r.alert);
+    toast('SOS sent. The help desk can see you.', 'good');
+  } catch (e) {
+    toast(`SOS failed: ${e.message}. Call 119!`, 'warn');
+  }
+}
+
+// ------------------------------------------------------------------ profile editing
+function openSheet(id) { $(id).classList.add('open'); }
+function closeSheets() { $$('.sheet-backdrop').forEach(s => s.classList.remove('open')); }
+
+function openEdit() {
+  const t = state.tourist;
+  $('#inName').value = t.name || '';
+  $('#inCountry').value = t.country || '';
+  $('#inLang').value = t.language || 'English';
+  $('#inSos').value = t.emergencyContact || '';
+  const parts = String(t.dietary || '').split(',').map(s => s.trim()).filter(s => s && s.toLowerCase() !== 'none');
+  const known = Object.values(DIET_TAGS).map(s => s.toLowerCase());
+  $('#dietPicks').innerHTML = Object.values(DIET_TAGS)
+    .map(l => `<button type="button" data-diet="${l}" class="${parts.some(p => p.toLowerCase() === l.toLowerCase()) ? 'on' : ''}">${l}</button>`).join('');
+  $('#inDietOther').value = parts.filter(p => !known.includes(p.toLowerCase())).join(', ');
+  openSheet('#sheetEdit');
+}
+
+async function saveProfile() {
+  const picked = $$('#dietPicks .on').map(b => b.dataset.diet);
+  const other = $('#inDietOther').value.split(',').map(s => s.trim()).filter(Boolean);
+  const dietary = [...picked, ...other].join(', ') || 'None';
+  $('#btnSave').disabled = true;
+  try {
+    const r = await api('/api/register', {
+      uid: state.uid, name: $('#inName').value, country: $('#inCountry').value,
+      language: $('#inLang').value, dietary, emergencyContact: $('#inSos').value
+    });
+    state.tourist = { ...state.tourist, ...r.tourist };
+    renderProfile();
+    closeSheets();
+    toast('Saved 💾', 'good');
+    loadRecs();
+    if (other.length) toast('Unknown allergies keep food picks extra strict', '');
+  } catch (e) {
+    toast(e.message, 'warn');
+  } finally {
+    $('#btnSave').disabled = false;
+  }
+}
+
+// ------------------------------------------------------------------ events
+function switchView(name) {
+  $$('.view').forEach(v => v.classList.toggle('on', v.id === `view-${name}`));
+  $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (name === 'map') { initMap(); renderHelp(); setTimeout(() => state.map?.invalidateSize(), 200); }
+}
+
+function bindEvents() {
+  $('#nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchView(b.dataset.view); });
+
+  $('#cats').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    $$('#cats button').forEach(x => x.classList.toggle('on', x === b));
+    state.category = b.dataset.cat;
+    loadRecs();
+  });
+
+  $('#recList').addEventListener('click', e => {
+    const b = e.target.closest('[data-go]');
+    if (!b) return;
+    const r = state.recs.find(x => x.id === b.dataset.go);
+    api('/api/recommendations/event', { uid: state.uid, itemId: r.id, action: 'opened' }).catch(() => {});
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}`, '_blank');
+  });
+
+  $('#btnLocate').addEventListener('click', async () => {
+    const pos = await shareLocation();
+    if (pos) { $('#recWhy').textContent = 'Sorted by what is close to you right now'; loadRecs(); }
+  });
+  $('#btnShareLoc').addEventListener('click', async () => { await shareLocation(); loadTourist({ celebrate: false }); });
+
+  $('#btnEdit').addEventListener('click', openEdit);
+  $('#btnSave').addEventListener('click', saveProfile);
+  $('#dietPicks').addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.classList.toggle('on'); });
+
+  $$('.sheet-backdrop').forEach(s => s.addEventListener('click', e => {
+    if (e.target === s || e.target.closest('[data-close]')) closeSheets();
+  }));
+
+  $('#sosFab').addEventListener('click', () => { renderHelp(); openSheet('#sheetSos'); });
+  setupHold();
+  $('#btnSosCancel').addEventListener('click', async () => {
+    if (!activeSos) return;
+    try { await api('/api/sos/cancel', { alertId: activeSos.alertId, reason: 'Tourist is OK' }); renderSos(null); toast('SOS cancelled. Glad you are OK 💚', 'good'); }
+    catch (e) { toast(e.message, 'warn'); }
+  });
+
+  $('#btnRedeem').addEventListener('click', () => { $('#inPin').value = ''; openSheet('#sheetRedeem'); });
+  $('#btnConfirmRedeem').addEventListener('click', async () => {
+    try {
+      const r = await api('/api/redeem', { uid: state.uid, pin: $('#inPin').value });
+      state.tourist = r.tourist;
+      renderVoucher();
+      closeSheets();
+      chime('voucher');
+      toast('🎁 Voucher used. Enjoy Dongmun Market!', 'good');
+    } catch (e) { toast(e.message, 'warn'); }
+  });
+
+  // demo tools
+  $('#btnUv').addEventListener('click', () => {
+    state.sunOnBead = !state.sunOnBead;
+    $('#bead').classList.toggle('sun', state.sunOnBead);
+    toast(state.sunOnBead ? '☀️ Bead turns tangerine in direct sun' : '🌥️ Bead back to pearl white in shade');
+  });
+  $('#btnSwitch').addEventListener('click', () => {
+    const next = prompt('Tag UID to open:', state.uid);
+    if (next && next.trim()) location.href = `/${encodeURIComponent(next.trim().toUpperCase())}`;
+  });
+  $('#btnReset').addEventListener('click', async () => {
+    if (!confirm('Reset stamps and voucher for this tag?')) return;
+    await api('/api/reset', { uid: state.uid }).catch(e => toast(e.message, 'warn'));
+    state.tourist = null;
+    await loadTourist({ celebrate: false });
+    loadRecs();
+  });
+  $('#demoTaps').addEventListener('click', async e => {
+    const b = e.target.closest('[data-tap]');
+    if (!b) return;
+    try {
+      const r = await api('/api/demo/tap', { uid: state.uid, station: b.dataset.tap });
+      if (r.duplicate) toast('Already stamped a moment ago ↺');
+      await loadTourist();
+    } catch (err) { toast(err.message, 'warn'); }
   });
 }
 
-init();
+function renderDemo() {
+  const cfg = state.config;
+  if (!cfg.demoMode) return;
+  $('#demoTools').classList.remove('hidden');
+  $('#demoTaps').innerHTML = cfg.stations.map(s => `<button class="btn small ${s.kind === 'place' ? 'sea' : s.kind === 'activity' ? 'leaf' : ''}" data-tap="${s.id}">${cfg.kinds[s.kind].emoji} Tap ${esc(cfg.kinds[s.kind].label)} station</button>`).join('');
+  $('#demoTags').innerHTML = ['04DBCE42CA2A81', 'FA1D2207', '2E720204', 'BEAD_001', 'BEAD_002']
+    .map(u => `<a class="chip ${u === state.uid ? 'tan' : ''}" href="/${u}">${u}</a>`).join('');
+}
+
+// ------------------------------------------------------------------ boot
+(async function init() {
+  bindEvents();
+  try {
+    state.config = await api('/api/config');
+    renderDemo();
+    await loadTourist({ celebrate: false });
+    loadRecs();
+    startSync();
+  } catch (e) {
+    setLive(false, 'Offline');
+    toast(`Could not reach server: ${e.message}`, 'warn');
+  }
+})();

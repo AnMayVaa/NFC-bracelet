@@ -2,193 +2,223 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Jeju AuraBeads — Tourist Dashboard</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7CC3E0">
+  <title>Jeju wish-band</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+<div class="app">
 
-  <div class="mobile-container">
-    
-    <!-- Top Bar -->
-    <header class="brand-header">
-      <div class="brand-title">
-        <span style="font-size: 1.5rem;">🌋</span>
-        <div>
-          <h1>Jeju AuraBeads</h1>
-          <div class="live-status">
-            <span class="pulse-dot"></span>
-            <span id="wsStatusText">Live Synced</span>
+  <!-- ============ Hero ============ -->
+  <header class="hero">
+    <div class="top">
+      <div class="brand"><div class="logo">🍊</div> Jeju wish-band</div>
+      <div class="live" id="live"><span class="dot"></span><span id="liveText">Connecting…</span></div>
+    </div>
+    <div class="hello">
+      <div class="small" id="greetSmall">안녕하세요! Welcome to Jeju</div>
+      <h1 id="greetName">Hello, traveler</h1>
+      <span class="uid mono" id="uidTag">…</span>
+    </div>
+    <!-- Hallasan, basalt coast and waves -->
+    <svg class="scene" viewBox="0 0 480 120" preserveAspectRatio="none" aria-hidden="true">
+      <circle cx="410" cy="30" r="14" fill="#FFD27A"/>
+      <path d="M0 94 L120 78 C160 56 200 44 240 44 C280 44 318 56 360 78 L480 90 L480 120 L0 120 Z" fill="#6BA77A"/>
+      <path d="M212 52 C226 44 254 44 268 52 L258 56 C248 51 232 51 222 56 Z" fill="#fff" opacity=".85"/>
+      <path d="M0 100 C60 90 110 108 170 100 C230 92 280 110 340 100 C400 90 440 104 480 98 L480 120 L0 120 Z" fill="#2E86AB" opacity=".85"/>
+      <path d="M0 108 C50 102 100 116 160 110 C220 104 270 118 330 110 C390 102 440 114 480 108 L480 120 L0 120 Z" fill="#FBF5E9"/>
+    </svg>
+  </header>
+
+  <main class="main">
+
+    <!-- ============ For You ============ -->
+    <section class="view on" id="view-home">
+      <div class="card uv-card">
+        <div class="bead" id="bead" title="UV bead on your wrist"></div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <span class="uv-num" id="uvNum">–</span><span class="chip sea" id="uvLabel">UV index</span>
           </div>
+          <div class="advice" id="uvAdvice">Checking Jeju sunshine…</div>
         </div>
       </div>
-      <div class="tag-badge" id="displayTagUid">UID: BEAD_001</div>
-    </header>
 
-    <!-- Passive UV Photochromic Bead Simulation -->
-    <div class="card uv-banner">
-      <div class="bead-preview" id="beadPreview"></div>
-      <div class="uv-info">
-        <h4 id="uvStatusTitle">UV Sensor Bead: Passive Safe</h4>
-        <p id="uvStatusDesc">Bead is pearl-white in shade. Expose to seaside sun to see Hallabong tangerine transition.</p>
+      <div class="section-title">✨ Picked for you <span class="ko">추천</span></div>
+      <div class="tabs-cats" id="cats">
+        <button data-cat="all" class="on">🌈 All</button>
+        <button data-cat="place">🗿 Places</button>
+        <button data-cat="food">🍊 Food</button>
+        <button data-cat="activity">🌊 Activities</button>
       </div>
-    </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 2px 10px">
+        <span class="muted" style="font-size:.8rem;font-weight:700" id="recWhy">Based on your diet, stamps and today's UV</span>
+        <button class="btn ghost small" id="btnLocate">📍 Near me</button>
+      </div>
+      <div class="rec-list" id="recList"></div>
+    </section>
 
-    <!-- Tourist Profile (Editable on Phone) -->
-    <div class="card profile-card">
-      <div class="profile-header">
-        <div class="profile-user-info">
-          <h2 id="touristName">Loading...</h2>
-          <div class="profile-sub" id="touristCountry">South Korea • Korean</div>
-        </div>
-        <button class="btn-edit" id="btnOpenEditModal">✏️ Edit</button>
+    <!-- ============ Map ============ -->
+    <section class="view" id="view-map">
+      <div class="section-title">🗺️ Helping Map <span class="ko">도움 지도</span></div>
+      <div id="map"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 2px">
+        <span class="chip sea">🗿 Place stop</span><span class="chip tan">🍊 Food stop</span><span class="chip leaf">🌊 Activity stop</span><span class="chip sos">🏥 Help point</span>
+      </div>
+      <div class="section-title">☎️ Hotlines</div>
+      <div class="hotlines" id="hotlines"></div>
+      <div class="section-title">🆘 Help near you</div>
+      <div class="help-list" id="helpList"></div>
+    </section>
+
+    <!-- ============ Stamps ============ -->
+    <section class="view" id="view-stamps">
+      <div class="section-title">🗿 Wish Passport <span class="ko">스탬프</span></div>
+      <div class="card passport">
+        <h3>Tap your wish-band at each station</h3>
+        <p class="muted" style="font-size:.85rem;font-weight:600">One food, one place and one activity stamp unlock a local market treat.</p>
+        <div class="stamps" id="stamps"></div>
+        <div class="progress"><div id="progressBar" style="width:0%"></div></div>
+        <div class="muted" style="font-size:.78rem;font-weight:800;margin-top:6px;text-align:right" id="progressText">0 / 3</div>
       </div>
 
-      <div class="profile-chips">
-        <div class="chip">
-          <span class="chip-label">Dietary:</span>
-          <span class="chip-val" id="touristDietary">No Shellfish</span>
-        </div>
-        <div class="chip">
-          <span class="chip-label">SOS:</span>
-          <span class="chip-val" id="touristEmergency">+82 10-1234-5678</span>
-        </div>
-        <div class="chip">
-          <span class="chip-label">Deposit:</span>
-          <span class="chip-val" style="color: var(--color-green);">10,000₩ (Active)</span>
-        </div>
+      <div class="section-title">🎁 Bonus reward</div>
+      <div class="voucher" id="voucher">
+        <div class="chip" id="voucherBadge" style="background:rgba(255,255,255,.4)">Locked</div>
+        <div class="amt" style="margin-top:10px">4,000 <small>KRW</small></div>
+        <div style="font-weight:800;font-size:.9rem" id="voucherWhere">Dongmun Traditional Market voucher</div>
+        <img class="qr hidden" id="voucherQr" alt="Voucher QR code">
+        <div class="code mono" id="voucherCode">•••• •••• ••••</div>
+        <div style="font-size:.8rem;font-weight:600" id="voucherDesc">Collect all three stamps to unlock.</div>
+        <button class="btn block" style="margin-top:12px;background:#fff;color:var(--tan-d);box-shadow:0 4px 0 rgba(0,0,0,.12)" id="btnRedeem" disabled>Show to merchant</button>
       </div>
-    </div>
 
-    <!-- AI Hyper-Local Recommendation -->
-    <div class="card" style="background: linear-gradient(135deg, #1C242A 0%, #151B20 100%); border-color: rgba(6, 182, 212, 0.3);">
-      <div style="display: flex; gap: 10px; align-items: flex-start;">
-        <span style="font-size: 1.4rem;">🤖</span>
-        <div>
-          <div style="font-size: 0.72rem; font-weight: 700; color: var(--color-haenyeo-teal); text-transform: uppercase;">
-            Jeju AI Eco-Advisor
+      <div class="section-title">🧭 Your trail</div>
+      <div class="card"><ul class="timeline" id="timeline"></ul></div>
+    </section>
+
+    <!-- ============ Me ============ -->
+    <section class="view" id="view-me">
+      <div class="section-title">🙂 My wish-band <span class="ko">내 정보</span></div>
+      <div class="card">
+        <div class="profile-top">
+          <div class="avatar">🧳</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:900;font-size:1.2rem" id="meName">…</div>
+            <div class="muted" style="font-weight:700;font-size:.85rem" id="meFrom">…</div>
           </div>
-          <div style="font-size: 0.8rem; color: #E5E7EB; margin-top: 3px; line-height: 1.35;" id="aiRecommendation">
-            "Maritime breeze dropping to 18°C along Olle Route 7. If feeling chilly, stop by Dongmun Market for warm Haenyeo Mom-guk!"
-          </div>
+          <button class="btn ghost small" id="btnEdit">✏️ Edit</button>
         </div>
-      </div>
-    </div>
-
-    <!-- Olle Trail Digital Passport (Dol Hareubang Stamps) -->
-    <div class="card passport-section">
-      <h3>
-        <span>🗿</span> Olle Trail Digital Passport
-      </h3>
-      <div class="passport-subtitle">
-        Tap your volcanic basalt bracelet at physical ESP32 trail stations:
+        <dl class="kv">
+          <dt>Diet</dt><dd id="meDiet">–</dd>
+          <dt>SOS contact</dt><dd id="meSos">–</dd>
+          <dt>Language</dt><dd id="meLang">–</dd>
+          <dt>Deposit</dt><dd id="meDeposit">–</dd>
+        </dl>
       </div>
 
-      <div class="stamps-grid">
-        <!-- Checkpoint 1 -->
-        <div class="stamp-box" id="stampBox1">
-          <div class="stamp-icon-wrapper">
-            <span class="stamp-stone-avatar">🗿</span>
-          </div>
-          <div class="stamp-title">1. Seongsan Sunrise Peak</div>
-          <div class="stamp-status" id="stampStatus1">Not Visited</div>
+      <div class="card" style="margin-top:14px">
+        <h3>🛡️ Safe &amp; Sound</h3>
+        <p class="muted" style="font-size:.85rem;font-weight:600;margin:4px 0 10px">Every station tap saves your last location, so rescuers know where to look even if your phone is off. You can also share your phone's GPS.</p>
+        <div style="font-size:.85rem;font-weight:700" id="meLastLoc">No location yet</div>
+        <button class="btn sea small" style="margin-top:10px" id="btnShareLoc">📡 Share my location now</button>
+      </div>
+
+      <details class="demo hidden" id="demoTools">
+        <summary>⚡ Demo tools (no hardware needed)</summary>
+        <div class="row" id="demoTaps"></div>
+        <div class="row">
+          <button class="btn ghost small" id="btnUv">☀️ Toggle sun on bead</button>
+          <button class="btn ghost small" id="btnSwitch">🔄 Switch tag</button>
+          <button class="btn ghost small" id="btnReset">↺ Reset my stamps</button>
         </div>
+        <div class="row" id="demoTags"></div>
+      </details>
+    </section>
+  </main>
 
-        <!-- Checkpoint 2 -->
-        <div class="stamp-box" id="stampBox2">
-          <div class="stamp-icon-wrapper">
-            <span class="stamp-stone-avatar">🍊</span>
-          </div>
-          <div class="stamp-title">2. Dongmun Market</div>
-          <div class="stamp-status" id="stampStatus2">Not Visited</div>
-        </div>
-      </div>
+  <!-- SOS floating button -->
+  <button class="sos-fab" id="sosFab" aria-label="Emergency SOS">SOS</button>
+
+  <!-- Bottom navigation -->
+  <nav class="nav" id="nav">
+    <button data-view="home" class="on"><span class="i">✨</span>For You</button>
+    <button data-view="map"><span class="i">🗺️</span>Map</button>
+    <button data-view="stamps"><span class="i">🗿</span>Stamps</button>
+    <button data-view="me"><span class="i">🙂</span>Me</button>
+  </nav>
+</div>
+
+<!-- ============ Sheets ============ -->
+<div class="sheet-backdrop" id="sheetEdit">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2>✏️ Edit profile</h2>
+    <p class="muted" style="font-size:.85rem;margin-bottom:14px">Your diet keeps food picks safe. Your SOS contact helps rescuers.</p>
+    <div class="field"><label>Name</label><input id="inName" maxlength="60" placeholder="Min-woo Kim"></div>
+    <div class="field"><label>Home country</label><input id="inCountry" maxlength="60" placeholder="Thailand"></div>
+    <div class="field"><label>Language</label>
+      <select id="inLang">
+        <option>English</option><option value="Korean">한국어 Korean</option><option value="Chinese">中文 Chinese</option>
+        <option value="Japanese">日本語 Japanese</option><option value="Thai">ไทย Thai</option>
+      </select>
     </div>
-
-    <!-- Green Market Reward Voucher -->
-    <div class="card voucher-card" id="voucherCard">
-      <span class="voucher-badge" id="voucherBadge">Locked</span>
-      <div class="voucher-amount">
-        4,000 <span>KRW</span> Voucher
-      </div>
-      <div class="voucher-desc" id="voucherDesc">
-        Complete both Olle checkpoints with your AuraBeads to unlock a 4,000 won coupon at Dongmun Traditional Market!
-      </div>
-      <div class="voucher-code-box" id="voucherCodeBox">
-        •••• - •••• - ••••
-      </div>
-      <button class="btn-redeem" id="btnRedeem" disabled>Redeem at Dongmun Market</button>
-    </div>
-
-    <!-- Testing & Hardware Simulator Toolbar -->
-    <div class="simulator-bar">
-      <div class="simulator-title">
-        <span>⚡</span> Hardware Prototype Simulator (Test Without Wiring)
-      </div>
-      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
-        <span style="font-size:0.72rem; color:var(--text-muted);">Quick Tag:</span>
-        <button type="button" class="btn-sim tag-pill" data-uid="04DBCE42CA2A81" style="font-size:0.72rem; padding:4px 8px; border-color:var(--color-tangerine); color:var(--color-tangerine); font-weight:700;" title="Primary Physical NFC Bracelet">🏷️ 04DBCE42CA2A81 (NFC Bracelet)</button>
-        <button type="button" class="btn-sim tag-pill" data-uid="FA1D2207" style="font-size:0.72rem; padding:4px 8px;" title="Blue RFID Fob">🔵 FA1D2207</button>
-        <button type="button" class="btn-sim tag-pill" data-uid="2E720204" style="font-size:0.72rem; padding:4px 8px;" title="White RFID Card">⚪ 2E720204</button>
-        <button type="button" class="btn-sim tag-pill" data-uid="BEAD_001" style="font-size:0.72rem; padding:4px 8px;">BEAD_001</button>
-      </div>
-      <div class="sim-buttons">
-        <button class="btn-sim" id="btnSimCP1">📍 Tap Checkpoint 1 (ESP32)</button>
-        <button class="btn-sim" id="btnSimCP2">📍 Tap Checkpoint 2 (ESP32)</button>
-        <button class="btn-sim" id="btnSimUV">☀️ Toggle Sun / UV Bead</button>
-        <button class="btn-sim" id="btnSwitchTag">🔄 Switch Tag UID</button>
-        <button class="btn-sim btn-sim-reset" id="btnSimReset">⚠️ Reset Demo State</button>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Modal: Edit Profile on Phone -->
-  <div class="modal-backdrop" id="editModal">
-    <div class="modal-content">
-      <h3><span>✏️</span> Edit Tourist Profile</h3>
-      <p style="font-size: 0.78rem; color: var(--text-muted);">
-        Update your personal preferences directly on your smartphone.
-      </p>
-
-      <div class="form-group">
-        <label for="inputName">Full Name</label>
-        <input type="text" id="inputName" placeholder="e.g. Min-woo Kim">
-      </div>
-
-      <div class="form-group">
-        <label for="inputCountry">Home Country / Region</label>
-        <input type="text" id="inputCountry" placeholder="e.g. South Korea">
-      </div>
-
-      <div class="form-group">
-        <label for="selectLanguage">Preferred Language</label>
-        <select id="selectLanguage">
-          <option value="English">English</option>
-          <option value="Korean">한국어 (Korean)</option>
-          <option value="Chinese">中文 (Chinese)</option>
-          <option value="Japanese">日本語 (Japanese)</option>
-          <option value="Thai">ไทย (Thai)</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="inputDietary">Dietary Restrictions / Allergies</label>
-        <input type="text" id="inputDietary" placeholder="e.g. Halal, Vegan, Shellfish Allergy">
-      </div>
-
-      <div class="form-group">
-        <label for="inputEmergency">Emergency Contact Number</label>
-        <input type="tel" id="inputEmergency" placeholder="+82 10-0000-0000">
-      </div>
-
-      <div class="modal-actions">
-        <button class="btn-secondary" id="btnCancelEdit">Cancel</button>
-        <button class="btn-primary" id="btnSaveEdit">Save to Cloud</button>
-      </div>
+    <div class="field"><label>Diet (tap all that apply)</label><div class="pick-row" id="dietPicks"></div></div>
+    <div class="field"><label>Other allergy (optional)</label><input id="inDietOther" maxlength="60" placeholder="e.g. peanut allergy"></div>
+    <div class="field"><label>Emergency contact</label><input id="inSos" type="tel" maxlength="30" placeholder="+66 81 234 5678"></div>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button class="btn ghost" style="flex:1" data-close>Cancel</button>
+      <button class="btn" style="flex:2" id="btnSave">Save</button>
     </div>
   </div>
+</div>
 
-  <script src="app.js"></script>
+<div class="sheet-backdrop" id="sheetSos">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2 style="color:var(--sos)">🆘 Need help?</h2>
+    <div id="sosIdle">
+      <p class="muted" style="font-size:.88rem;margin-bottom:14px">Hold the button for 2 seconds. We send your location and wish-band profile to the Jeju help desk.</p>
+      <button class="hold-btn" id="holdSos"><div class="fill" id="holdFill"></div><span>Hold to send SOS</span></button>
+      <div class="field" style="margin-top:12px"><label>What's wrong? (optional)</label><input id="sosNote" maxlength="120" placeholder="Twisted ankle on the trail"></div>
+    </div>
+    <div id="sosActive" class="hidden">
+      <p style="font-weight:800">Help is on the way. Stay where you are if it is safe.</p>
+      <div class="sos-steps">
+        <div class="sos-step" data-s="PENDING"><i>📨</i>Sent</div>
+        <div class="sos-step" data-s="ACKNOWLEDGED"><i>👀</i>Seen</div>
+        <div class="sos-step" data-s="DISPATCHED"><i>🚑</i>Coming</div>
+        <div class="sos-step" data-s="RESOLVED"><i>💚</i>Safe</div>
+      </div>
+      <div class="muted" style="font-size:.85rem;font-weight:700;text-align:center" id="sosDetail"></div>
+      <button class="btn ghost block small" style="margin-top:12px" id="btnSosCancel">I'm OK now, cancel</button>
+    </div>
+    <div class="section-title" style="margin-top:18px">Call directly</div>
+    <div class="hotlines" id="sosHotlines"></div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="sheetRedeem">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2>🎁 Merchant confirmation</h2>
+    <p class="muted" style="font-size:.88rem;margin-bottom:14px">Hand the phone to the Dongmun Market vendor. They enter their shop PIN to use this voucher.</p>
+    <div class="field"><label>Merchant PIN</label><input id="inPin" type="password" inputmode="numeric" maxlength="8" placeholder="••••"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn ghost" style="flex:1" data-close>Cancel</button>
+      <button class="btn" style="flex:2" id="btnConfirmRedeem">Use voucher</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/app.js"></script>
 </body>
 </html>

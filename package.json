@@ -1,10 +1,12 @@
 {
-  "name": "nfc",
+  "name": "jeju-wish-band",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Jeju wish-band: Travel + Connect + Protect. NFC wristband, AI trip suggestions, Helping Map and SOS.",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js"
   },
   "keywords": [],
   "author": "",
@@ -13,5 +15,8 @@
   "dependencies": {
     "express": "^5.2.1",
     "ws": "^8.21.3"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
