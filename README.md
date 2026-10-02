@@ -4,7 +4,7 @@ A smart basalt-bead wristband for Jeju visitors. Tap the band on a phone to open
 
 | Part | What it does |
 | :--- | :--- |
-| 📱 Tourist app (`/<UID>`) | AI picks (diet-safe, UV-aware, boosts local and quiet spots), Helping Map, hotlines, hold-to-send SOS, stamp passport, 4,000 KRW Dongmun Market voucher |
+| 📱 Tourist app (`/<UID>`) | **For You**: map + AI picks (diet-safe, UV-aware, boosts local and quiet spots) · **SOS**: hold-to-send SOS, hotlines, Helping Map, help near you · **Stamps**: route map, passport, 4,000 KRW Dongmun Market voucher · **Me**: profile and demo tools |
 | 🏢 Admin desk (`/admin`) | Issue and register bands, write NFC tags, SOS queue (acknowledge, dispatch, resolve), station health, live log, evaluation metrics |
 | 📟 `firmware/admin` | ESP32 + PN532 desk reader: reads the tag, writes the tourist link, reports to the admin desk |
 | 🍊 `firmware/food` · 🗿 `firmware/place` · 🌊 `firmware/activity` | ESP32 stations (MFRC522 by default, PN532 optional): each tap gives a stamp of that kind |

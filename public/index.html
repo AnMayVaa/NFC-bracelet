@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -23,9 +23,11 @@
     <div class="hello">
       <div class="small" id="greetSmall">안녕하세요! Welcome to Jeju</div>
       <h1 id="greetName">Hello, traveler</h1>
-      <span class="uid mono" id="uidTag">…</span>
+      <div class="hello-row">
+        <span class="uid mono" id="uidTag">…</span>
+        <span class="uv-pill" id="uvPill" title="UV index now"><span class="bead mini" id="bead"></span><b id="uvNum">–</b> UV</span>
+      </div>
     </div>
-    <!-- Hallasan, basalt coast and waves -->
     <svg class="scene" viewBox="0 0 480 120" preserveAspectRatio="none" aria-hidden="true">
       <circle cx="410" cy="30" r="14" fill="#FFD27A"/>
       <path d="M0 94 L120 78 C160 56 200 44 240 44 C280 44 318 56 360 78 L480 90 L480 120 L0 120 Z" fill="#6BA77A"/>
@@ -39,49 +41,84 @@
 
     <!-- ============ For You ============ -->
     <section class="view on" id="view-home">
-      <div class="card uv-card">
-        <div class="bead" id="bead" title="UV bead on your wrist"></div>
-        <div style="flex:1">
-          <div style="display:flex;align-items:baseline;gap:8px">
-            <span class="uv-num" id="uvNum">–</span><span class="chip sea" id="uvLabel">UV index</span>
-          </div>
-          <div class="advice" id="uvAdvice">Checking Jeju sunshine…</div>
+      <div class="section-title">✨ Explore Jeju <span class="ko">추천 지도</span></div>
+      <div class="map-card">
+        <div class="map" id="mapHome"></div>
+        <button class="map-fab" id="btnLocate" title="Use my location">📍</button>
+      </div>
+
+      <div class="cats-sticky">
+        <div class="tabs-cats" id="cats">
+          <button data-cat="all" class="on">🌈 All</button>
+          <button data-cat="place">🗿 Places</button>
+          <button data-cat="food">🍊 Food</button>
+          <button data-cat="activity">🌊 Activities</button>
         </div>
       </div>
 
-      <div class="section-title">✨ Picked for you <span class="ko">추천</span></div>
-      <div class="tabs-cats" id="cats">
-        <button data-cat="all" class="on">🌈 All</button>
-        <button data-cat="place">🗿 Places</button>
-        <button data-cat="food">🍊 Food</button>
-        <button data-cat="activity">🌊 Activities</button>
+      <div class="advice-strip" id="adviceStrip">
+        <span class="e">☀️</span><span id="uvAdvice">Checking Jeju sunshine…</span>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 2px 10px">
-        <span class="muted" style="font-size:.8rem;font-weight:700" id="recWhy">Based on your diet, stamps and today's UV</span>
-        <button class="btn ghost small" id="btnLocate">📍 Near me</button>
+
+      <div class="list-head">
+        <b>Picked for you</b>
+        <span class="muted" id="recWhy">diet · stamps · today's UV</span>
       </div>
-      <div class="rec-list" id="recList"></div>
+      <div class="rec-list" id="recList">
+        <div class="rec skeleton"></div><div class="rec skeleton"></div><div class="rec skeleton"></div>
+      </div>
     </section>
 
-    <!-- ============ Map ============ -->
-    <section class="view" id="view-map">
-      <div class="section-title">🗺️ Helping Map <span class="ko">도움 지도</span></div>
-      <div id="map"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 2px">
-        <span class="chip sea">🗿 Place stop</span><span class="chip tan">🍊 Food stop</span><span class="chip leaf">🌊 Activity stop</span><span class="chip sos">🏥 Help point</span>
+    <!-- ============ SOS ============ -->
+    <section class="view" id="view-sos">
+      <div class="section-title sos-title">🆘 Safe &amp; Sound <span class="ko">긴급 도움</span></div>
+
+      <div class="card sos-card" id="sosCard">
+        <div id="sosIdle">
+          <h3>Need help right now?</h3>
+          <p class="muted small-p">Hold the button for 2 seconds. The Jeju help desk gets your location and wish-band profile.</p>
+          <button class="hold-btn" id="holdSos"><div class="fill" id="holdFill"></div><span>🚨 Hold to send SOS</span></button>
+          <input class="input" id="sosNote" maxlength="120" placeholder="What's wrong? (optional) e.g. twisted ankle" style="margin-top:12px">
+        </div>
+        <div id="sosActive" class="hidden">
+          <h3 style="color:var(--sos)">Help is on the way</h3>
+          <p class="muted small-p">Stay where you are if it is safe. Keep your phone on.</p>
+          <div class="sos-steps">
+            <div class="sos-step" data-s="PENDING"><i>📨</i>Sent</div>
+            <div class="sos-step" data-s="ACKNOWLEDGED"><i>👀</i>Seen</div>
+            <div class="sos-step" data-s="DISPATCHED"><i>🚑</i>Coming</div>
+            <div class="sos-step" data-s="RESOLVED"><i>💚</i>Safe</div>
+          </div>
+          <div class="muted" style="font-size:.85rem;font-weight:700;text-align:center" id="sosDetail"></div>
+          <button class="btn ghost block small" style="margin-top:12px" id="btnSosCancel">I'm OK now, cancel</button>
+        </div>
       </div>
+
       <div class="section-title">☎️ Hotlines</div>
       <div class="hotlines" id="hotlines"></div>
-      <div class="section-title">🆘 Help near you</div>
+
+      <div class="section-title">🗺️ Helping Map <span class="ko">도움 지도</span></div>
+      <div class="map-card">
+        <div class="map" id="mapSos"></div>
+        <button class="map-fab" id="btnShareLoc" title="Share my location">📡</button>
+      </div>
+      <div class="loc-line" id="lastLoc">No location yet</div>
+
+      <div class="section-title">🏥 Help near you</div>
       <div class="help-list" id="helpList"></div>
     </section>
 
     <!-- ============ Stamps ============ -->
     <section class="view" id="view-stamps">
-      <div class="section-title">🗿 Wish Passport <span class="ko">스탬프</span></div>
-      <div class="card passport">
-        <h3>Tap your wish-band at each station</h3>
-        <p class="muted" style="font-size:.85rem;font-weight:600">One food, one place and one activity stamp unlock a local market treat.</p>
+      <div class="section-title">🗿 Wish Route <span class="ko">스탬프 지도</span></div>
+      <div class="map-card">
+        <div class="map" id="mapStamps"></div>
+      </div>
+      <div class="next-stop hidden" id="nextStop"></div>
+
+      <div class="card passport" style="margin-top:14px">
+        <h3>Wish Passport</h3>
+        <p class="muted small-p">One food, one place and one activity stamp unlock a local market treat.</p>
         <div class="stamps" id="stamps"></div>
         <div class="progress"><div id="progressBar" style="width:0%"></div></div>
         <div class="muted" style="font-size:.78rem;font-weight:800;margin-top:6px;text-align:right" id="progressText">0 / 3</div>
@@ -122,11 +159,12 @@
         </dl>
       </div>
 
-      <div class="card" style="margin-top:14px">
-        <h3>🛡️ Safe &amp; Sound</h3>
-        <p class="muted" style="font-size:.85rem;font-weight:600;margin:4px 0 10px">Every station tap saves your last location, so rescuers know where to look even if your phone is off. You can also share your phone's GPS.</p>
-        <div style="font-size:.85rem;font-weight:700" id="meLastLoc">No location yet</div>
-        <button class="btn sea small" style="margin-top:10px" id="btnShareLoc">📡 Share my location now</button>
+      <div class="card bead-card" style="margin-top:14px">
+        <div class="bead big" id="beadBig"></div>
+        <div>
+          <h3>Your UV bead</h3>
+          <p class="muted small-p">The basalt-band bead turns tangerine in direct sun. That's your reminder for sunscreen.</p>
+        </div>
       </div>
 
       <details class="demo hidden" id="demoTools">
@@ -142,13 +180,10 @@
     </section>
   </main>
 
-  <!-- SOS floating button -->
-  <button class="sos-fab" id="sosFab" aria-label="Emergency SOS">SOS</button>
-
   <!-- Bottom navigation -->
   <nav class="nav" id="nav">
     <button data-view="home" class="on"><span class="i">✨</span>For You</button>
-    <button data-view="map"><span class="i">🗺️</span>Map</button>
+    <button data-view="sos" class="nav-sos"><span class="i">🆘</span>SOS<span class="dotbadge hidden" id="sosBadge"></span></button>
     <button data-view="stamps"><span class="i">🗿</span>Stamps</button>
     <button data-view="me"><span class="i">🙂</span>Me</button>
   </nav>
@@ -178,31 +213,6 @@
   </div>
 </div>
 
-<div class="sheet-backdrop" id="sheetSos">
-  <div class="sheet">
-    <div class="grab"></div>
-    <h2 style="color:var(--sos)">🆘 Need help?</h2>
-    <div id="sosIdle">
-      <p class="muted" style="font-size:.88rem;margin-bottom:14px">Hold the button for 2 seconds. We send your location and wish-band profile to the Jeju help desk.</p>
-      <button class="hold-btn" id="holdSos"><div class="fill" id="holdFill"></div><span>Hold to send SOS</span></button>
-      <div class="field" style="margin-top:12px"><label>What's wrong? (optional)</label><input id="sosNote" maxlength="120" placeholder="Twisted ankle on the trail"></div>
-    </div>
-    <div id="sosActive" class="hidden">
-      <p style="font-weight:800">Help is on the way. Stay where you are if it is safe.</p>
-      <div class="sos-steps">
-        <div class="sos-step" data-s="PENDING"><i>📨</i>Sent</div>
-        <div class="sos-step" data-s="ACKNOWLEDGED"><i>👀</i>Seen</div>
-        <div class="sos-step" data-s="DISPATCHED"><i>🚑</i>Coming</div>
-        <div class="sos-step" data-s="RESOLVED"><i>💚</i>Safe</div>
-      </div>
-      <div class="muted" style="font-size:.85rem;font-weight:700;text-align:center" id="sosDetail"></div>
-      <button class="btn ghost block small" style="margin-top:12px" id="btnSosCancel">I'm OK now, cancel</button>
-    </div>
-    <div class="section-title" style="margin-top:18px">Call directly</div>
-    <div class="hotlines" id="sosHotlines"></div>
-  </div>
-</div>
-
 <div class="sheet-backdrop" id="sheetRedeem">
   <div class="sheet">
     <div class="grab"></div>
@@ -218,7 +228,7 @@
 
 <div class="toast-wrap" id="toasts"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/vendor/leaflet/leaflet.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

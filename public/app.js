@@ -63,6 +63,14 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
+function haversine(a, b) {
+  const R = 6371, r = x => x * Math.PI / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+const directionsUrl = p => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
+
 // ------------------------------------------------------------------ state
 function readUid() {
   const q = new URLSearchParams(location.search).get('uid');
@@ -73,17 +81,151 @@ function readUid() {
 
 const state = {
   uid: readUid(),
+  view: 'home',
   config: null,
   tourist: null,
   category: 'all',
   origin: null,        // phone GPS if the tourist allowed it
   recs: [],
+  uv: null,
   sunOnBead: false,
-  map: null
+  maps: {},            // id -> { map, layer }
+  recMarkers: {}
 };
 
 const DIET_TAGS = { TAG_HALAL: 'Halal', TAG_VEGAN: 'Vegan', TAG_VEGETARIAN: 'Vegetarian', TAG_NO_SHELLFISH: 'No Shellfish', TAG_GLUTEN_FREE: 'Gluten-Free' };
 const HELP_ICONS = { hospital: '🏥', police: '👮', info: 'ℹ️' };
+const CAT_COLORS = { place: '#2E86AB', food: '#F28C38', activity: '#5E9A62' };
+const JEJU_CENTER = [33.38, 126.55];
+
+function myPosition() {
+  if (state.origin) return state.origin;
+  const l = state.tourist?.lastLocation;
+  return l ? { lat: l.lat, lng: l.lng } : null;
+}
+
+function stationName(id) {
+  return state.config?.stations.find(s => s.id === id)?.name || id;
+}
+
+// ------------------------------------------------------------------ maps
+function getMap(id) {
+  if (state.maps[id]) return state.maps[id];
+  const el = document.getElementById(id);
+  if (!window.L) {
+    el.innerHTML = '<div class="empty"><div class="big">🗺️</div>Map could not load right now.</div>';
+    return null;
+  }
+  const map = L.map(el, { zoomControl: false, attributionControl: true, tap: true }).setView(JEJU_CENTER, 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
+  L.control.zoom({ position: 'bottomleft' }).addTo(map);
+  const entry = { map, layer: L.layerGroup().addTo(map) };
+  state.maps[id] = entry;
+  return entry;
+}
+
+const pin = (emoji, color, extra = '') => L.divIcon({
+  className: '', iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -32],
+  html: `<div class="pin ${extra}" style="background:${color}"><span>${emoji}</span></div>`
+});
+
+function addMe(entry) {
+  const me = myPosition();
+  if (!me) return null;
+  L.circleMarker([me.lat, me.lng], { radius: 9, color: '#fff', weight: 3, fillColor: '#2E86AB', fillOpacity: 1 })
+    .addTo(entry.layer).bindPopup(state.origin ? 'You are here' : 'Your last wish-band tap');
+  return [me.lat, me.lng];
+}
+
+function fit(entry, points) {
+  entry.points = points;
+  if (!points.length) return;
+  if (points.length === 1) entry.map.setView(points[0], 12);
+  else entry.map.fitBounds(points, { padding: [36, 36], maxZoom: 13 });
+}
+
+function renderHomeMap() {
+  const entry = getMap('mapHome');
+  if (!entry) return;
+  entry.layer.clearLayers();
+  state.recMarkers = {};
+  const pts = [];
+  state.recs.slice(0, 8).forEach((r, i) => {
+    const m = L.marker([r.lat, r.lng], { icon: pin(r.emoji || '📍', CAT_COLORS[r.category], i === 0 ? 'best' : ''), zIndexOffset: i === 0 ? 500 : 0 })
+      .addTo(entry.layer)
+      .bindPopup(`<div class="pop"><b>${esc(r.title)}</b><span>${esc(r.title_ko || '')}</span>
+        <small>${esc((r.reasons || []).join(' · '))}</small>
+        <button class="btn small" data-go="${esc(r.id)}">Directions</button></div>`);
+    state.recMarkers[r.id] = m;
+    pts.push([r.lat, r.lng]);
+  });
+  const me = addMe(entry);
+  if (me) pts.push(me);
+  fit(entry, pts);
+}
+
+function renderSosMap() {
+  const entry = getMap('mapSos');
+  if (!entry) return;
+  entry.layer.clearLayers();
+  const pts = state.config.helpPoints.map(h => {
+    L.marker([h.lat, h.lng], { icon: pin(HELP_ICONS[h.type] || '🆘', '#D8574A') }).addTo(entry.layer)
+      .bindPopup(`<div class="pop"><b>${esc(h.name)}</b><a class="btn small sea" href="tel:${esc(h.phone)}">Call ${esc(h.phone)}</a></div>`);
+    return [h.lat, h.lng];
+  });
+  const me = addMe(entry);
+  if (me) pts.push(me);
+  fit(entry, pts);
+}
+
+function nextStation() {
+  const cfg = state.config, t = state.tourist;
+  return [...cfg.stations].sort((a, b) => a.order - b.order).find(s => !t?.stamps?.[s.id]) || null;
+}
+
+function renderStampsMap() {
+  const entry = getMap('mapStamps');
+  if (!entry) return;
+  entry.layer.clearLayers();
+  const cfg = state.config, t = state.tourist;
+  const ordered = [...cfg.stations].sort((a, b) => a.order - b.order);
+  const next = nextStation();
+  L.polyline(ordered.map(s => [s.lat, s.lng]), { color: '#F28C38', weight: 4, opacity: .7, dashArray: '2 10', lineCap: 'round' }).addTo(entry.layer);
+  const pts = ordered.map(s => {
+    const k = cfg.kinds[s.kind];
+    const done = t?.stamps?.[s.id];
+    L.marker([s.lat, s.lng], { icon: pin(done ? '✅' : k.emoji, done ? '#9AA39B' : k.color, next?.id === s.id ? 'pulse' : '') }).addTo(entry.layer)
+      .bindPopup(`<div class="pop"><b>${esc(s.name)}</b><span>${esc(s.name_ko)}</span>
+        <small>${esc(k.label)} station · ${done ? 'stamped ✔' : 'not yet'}</small>
+        <a class="btn small" target="_blank" href="${directionsUrl(s)}">Directions</a></div>`);
+    return [s.lat, s.lng];
+  });
+  const me = addMe(entry);
+  if (me) pts.push(me);
+  fit(entry, pts);
+
+  const box = $('#nextStop');
+  if (!next) {
+    box.innerHTML = '<span class="e">🎉</span><div><b>Route complete!</b><div class="muted">All stamps collected. Enjoy your market treat.</div></div>';
+  } else {
+    const me = myPosition();
+    const d = me ? haversine(me, next) : null;
+    box.innerHTML = `<span class="e">${cfg.kinds[next.kind].emoji}</span>
+      <div style="flex:1;min-width:0"><b>Next stop: ${esc(next.name)}</b><div class="muted">${esc(next.blurb || '')}${d != null ? ` · ${d.toFixed(1)} km` : ''}</div></div>
+      <a class="btn small" target="_blank" href="${directionsUrl(next)}">Go</a>`;
+  }
+  box.classList.remove('hidden');
+}
+
+function refreshMapSize() {
+  const id = { home: 'mapHome', sos: 'mapSos', stamps: 'mapStamps' }[state.view];
+  const entry = id && state.maps[id];
+  if (!entry) return;
+  setTimeout(() => {
+    entry.map.invalidateSize();
+    if (!entry.sized && entry.points) { entry.sized = true; fit(entry, entry.points); }
+  }, 80);
+}
 
 // ------------------------------------------------------------------ rendering
 function renderProfile() {
@@ -99,13 +241,9 @@ function renderProfile() {
   $('#meLang').textContent = t.language || 'English';
   $('#meDeposit').innerHTML = t.depositPaid ? '<span class="chip leaf">10,000₩ held · refunded on return</span>' : '<span class="chip">None</span>';
   const loc = t.lastLocation;
-  $('#meLastLoc').textContent = loc
-    ? `📍 Last seen ${loc.source === 'station' ? 'at ' + stationName(loc.station) : 'by phone GPS'} · ${timeAgo(loc.timestamp)}`
-    : 'No location yet. Tap a station or share your GPS.';
-}
-
-function stationName(id) {
-  return state.config?.stations.find(s => s.id === id)?.name || id;
+  $('#lastLoc').innerHTML = loc
+    ? `📍 Last seen ${loc.source === 'station' ? 'at <b>' + esc(stationName(loc.station)) + '</b>' : 'by <b>phone GPS</b>'} · ${timeAgo(loc.timestamp)}`
+    : '📍 No location yet. Tap a station or press 📡 on the map.';
 }
 
 function renderStamps(justStamped = []) {
@@ -128,9 +266,10 @@ function renderStamps(justStamped = []) {
   const history = [...(t.checkinHistory || [])].reverse().slice(0, 12);
   $('#timeline').innerHTML = history.length
     ? history.map(h => `<li><span>${cfg.kinds[h.kind]?.emoji || '📍'}</span>${esc(stationName(h.station))}${h.visitSequence > 1 ? ` <span class="chip">visit ${h.visitSequence}</span>` : ''}<span class="t">${timeAgo(h.timestamp)}</span></li>`).join('')
-    : '<li class="muted">No taps yet. Find a wish-band station and tap your bracelet!</li>';
+    : '<li class="muted">No taps yet. Find a wish-band station on the map and tap your bracelet!</li>';
 
   renderVoucher();
+  if (state.maps.mapStamps) renderStampsMap();
 }
 
 function renderVoucher() {
@@ -170,30 +309,38 @@ function renderVoucher() {
   }
 }
 
+function renderUv() {
+  const uv = state.uv;
+  $('#uvNum').textContent = uv ?? '–';
+  const sun = state.sunOnBead || (uv ?? 0) >= 3;
+  $('#bead').classList.toggle('sun', sun);
+  $('#beadBig').classList.toggle('sun', sun);
+}
+
 function renderRecs(data) {
   if (data) {
     state.recs = data.recommendations || [];
-    $('#uvNum').textContent = data.uvIndex ?? '–';
-    const uv = data.uvIndex ?? 0;
-    $('#uvLabel').textContent = uv >= 8 ? 'Very high UV' : uv >= 6 ? 'High UV' : uv >= 3 ? 'Moderate UV' : 'Low UV';
+    state.uv = data.uvIndex;
     $('#uvAdvice').textContent = data.advice + (data.uvSource === 'fallback' ? ' (estimate)' : '');
-    if (!state.sunOnBead) $('#bead').classList.toggle('sun', uv >= 3);
+    $('#adviceStrip .e').textContent = (data.uvIndex ?? 0) >= 6 ? '🧴' : (data.uvIndex ?? 0) >= 3 ? '😎' : '🌤️';
+    renderUv();
   }
+  renderHomeMap();
   const list = $('#recList');
   if (!state.recs.length) {
     list.innerHTML = `<div class="empty"><div class="big">🌿</div>Nothing safe to suggest in this category yet.<br>Try another tab or update your diet in <b>Me</b>.</div>`;
     return;
   }
   list.innerHTML = state.recs.slice(0, 8).map((r, i) => `
-    <div class="rec ${i === 0 ? 'top' : ''}" data-id="${esc(r.id)}">
-      <div class="ico ${r.category}">${r.emoji || '📍'}</div>
+    <div class="rec ${i === 0 ? 'top' : ''}" data-id="${esc(r.id)}" tabindex="0">
+      <div class="ico ${r.category}">${r.emoji || '📍'}<span class="rank">${i + 1}</span></div>
       <div class="body">
         ${i === 0 ? '<div class="badge-top">★ Best match right now</div>' : ''}
         <div class="title">${esc(r.title)} <span class="ko">${esc(r.title_ko || '')}</span></div>
         <div class="note">${esc(r.note || '')}</div>
         <div class="reasons">${(r.reasons || []).map(x => `<span class="chip ${r.category === 'food' ? 'tan' : r.category === 'place' ? 'sea' : 'leaf'}">${esc(x)}</span>`).join('')}</div>
       </div>
-      <button class="btn small go" data-go="${esc(r.id)}">Go</button>
+      <button class="btn small go" data-go="${esc(r.id)}" aria-label="Directions">Go</button>
     </div>`).join('');
 }
 
@@ -207,7 +354,8 @@ async function loadTourist({ celebrate = true } = {}) {
   const voucherJustUnlocked = before && before.voucher?.status === 'LOCKED' && t.voucher?.status === 'UNLOCKED';
 
   renderProfile();
-  renderStamps(newStamps);
+  if (!before || JSON.stringify(before.stamps) !== JSON.stringify(t.stamps) || before.voucher?.status !== t.voucher?.status
+      || (before.checkinHistory || []).length !== (t.checkinHistory || []).length) renderStamps(newStamps);
   renderSos(t.activeSos);
 
   if (celebrate && newStamps.length) {
@@ -238,7 +386,7 @@ let pollTimer = null;
 function startPolling() {
   if (pollTimer) return;
   setLive(true, 'Live');
-  pollTimer = setInterval(() => loadTourist().catch(() => setLive(false, 'Offline')), 2500);
+  pollTimer = setInterval(() => loadTourist().then(() => setLive(true, 'Live')).catch(() => setLive(false, 'Offline')), 2500);
 }
 
 function startSync() {
@@ -256,84 +404,28 @@ function startSync() {
   } catch (_) { startPolling(); }
 }
 
-// ------------------------------------------------------------------ map
-function initMap() {
-  if (state.map) return;
-  if (!window.L) { $('#map').innerHTML = '<div class="empty"><div class="big">🗺️</div>Map could not load. The help list below still works.</div>'; return; }
-  const cfg = state.config;
-  const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([33.39, 126.55], 9);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
-  const pin = (emoji, color) => L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -30],
-    html: `<div class="pin" style="background:${color}"><span>${emoji}</span></div>` });
-
-  for (const s of cfg.stations) {
-    const k = cfg.kinds[s.kind];
-    const done = state.tourist?.stamps?.[s.id];
-    L.marker([s.lat, s.lng], { icon: pin(done ? '✅' : k.emoji, k.color) }).addTo(map)
-      .bindPopup(`<b>${esc(s.name)}</b><br>${esc(s.name_ko)}<br>${esc(k.label)} station${done ? ' · stamped' : ''}`);
-  }
-  for (const h of cfg.helpPoints) {
-    L.marker([h.lat, h.lng], { icon: pin(HELP_ICONS[h.type] || '🆘', '#D8574A') }).addTo(map)
-      .bindPopup(`<b>${esc(h.name)}</b><br><a href="tel:${esc(h.phone)}">Call ${esc(h.phone)}</a>`);
-  }
-  const me = state.origin || (state.tourist?.lastLocation && { lat: state.tourist.lastLocation.lat, lng: state.tourist.lastLocation.lng });
-  if (me) L.circleMarker([me.lat, me.lng], { radius: 9, color: '#fff', weight: 3, fillColor: '#2E86AB', fillOpacity: 1 }).addTo(map).bindPopup('You (last known)');
-  state.map = map;
-  setTimeout(() => map.invalidateSize(), 150);
-}
-
+// ------------------------------------------------------------------ SOS tab
 function renderHelp() {
   const cfg = state.config;
-  const hot = cfg.hotlines.map(h => `<a class="hotline" href="tel:${esc(h.number)}"><b>${esc(h.number)}</b><span>${esc(h.label)}</span></a>`).join('');
-  $('#hotlines').innerHTML = hot;
-  $('#sosHotlines').innerHTML = hot;
-  const origin = state.origin || (state.tourist?.lastLocation && { lat: state.tourist.lastLocation.lat, lng: state.tourist.lastLocation.lng });
+  $('#hotlines').innerHTML = cfg.hotlines.map(h => `<a class="hotline" href="tel:${esc(h.number)}"><b>${esc(h.number)}</b><span>${esc(h.label)}</span></a>`).join('');
+  const origin = myPosition();
   const dist = h => origin ? haversine(origin, h) : null;
   const items = [...cfg.helpPoints].sort((a, b) => (dist(a) ?? 0) - (dist(b) ?? 0));
   $('#helpList').innerHTML = items.map(h => {
     const d = dist(h);
-    return `<div class="help-item"><span class="e">${HELP_ICONS[h.type] || '🆘'}</span>
-      <div><div class="n">${esc(h.name)}</div><div class="d">${d != null ? d.toFixed(1) + ' km · ' : ''}${esc(h.type)}</div></div>
+    return `<div class="help-item" data-lat="${h.lat}" data-lng="${h.lng}"><span class="e">${HELP_ICONS[h.type] || '🆘'}</span>
+      <div style="flex:1;min-width:0"><div class="n">${esc(h.name)}</div><div class="d">${d != null ? d.toFixed(1) + ' km · ' : ''}${esc(h.type)}</div></div>
+      <a class="icon-btn" href="${directionsUrl(h)}" target="_blank" title="Directions">🧭</a>
       <a class="btn small sea" href="tel:${esc(h.phone)}">Call</a></div>`;
   }).join('');
 }
 
-function haversine(a, b) {
-  const R = 6371, r = x => x * Math.PI / 180;
-  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
-// ------------------------------------------------------------------ GPS
-function getPosition() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error('GPS not available'));
-    navigator.geolocation.getCurrentPosition(
-      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) }),
-      e => reject(new Error(e.message || 'Location blocked')),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-    );
-  });
-}
-
-async function shareLocation({ quiet = false } = {}) {
-  try {
-    const pos = await getPosition();
-    state.origin = pos;
-    await api('/api/location', { uid: state.uid, ...pos });
-    if (!quiet) toast('📍 Location saved', 'good');
-    return pos;
-  } catch (e) {
-    if (!quiet) toast(`Location: ${e.message}`, 'warn');
-    return null;
-  }
-}
-
-// ------------------------------------------------------------------ SOS
 let activeSos = null;
 function renderSos(alert) {
   activeSos = alert || null;
-  $('#sosFab').classList.toggle('active', !!activeSos);
+  $('#sosBadge').classList.toggle('hidden', !activeSos);
+  $('.nav-sos').classList.toggle('alert', !!activeSos);
+  $('#sosCard').classList.toggle('active', !!activeSos);
   $('#sosIdle').classList.toggle('hidden', !!activeSos);
   $('#sosActive').classList.toggle('hidden', !activeSos);
   if (!activeSos) return;
@@ -350,15 +442,16 @@ function setupHold() {
   const btn = $('#holdSos'), fill = $('#holdFill');
   let start = 0, raf = 0;
   const HOLD_MS = 2000;
-  const stop = () => { cancelAnimationFrame(raf); start = 0; fill.style.transform = 'scaleX(0)'; };
+  const stop = () => { cancelAnimationFrame(raf); start = 0; fill.style.transform = 'scaleX(0)'; btn.classList.remove('holding'); };
   const tick = () => {
     const p = Math.min(1, (performance.now() - start) / HOLD_MS);
     fill.style.transform = `scaleX(${p})`;
     if (p >= 1) { stop(); sendSos(); return; }
     raf = requestAnimationFrame(tick);
   };
-  btn.addEventListener('pointerdown', e => { e.preventDefault(); start = performance.now(); if (navigator.vibrate) navigator.vibrate(30); tick(); });
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); start = performance.now(); btn.classList.add('holding'); if (navigator.vibrate) navigator.vibrate(30); tick(); });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+  btn.addEventListener('contextmenu', e => e.preventDefault());
 }
 
 async function sendSos() {
@@ -375,6 +468,31 @@ async function sendSos() {
     toast('SOS sent. The help desk can see you.', 'good');
   } catch (e) {
     toast(`SOS failed: ${e.message}. Call 119!`, 'warn');
+  }
+}
+
+// ------------------------------------------------------------------ GPS
+function getPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('GPS not available'));
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) }),
+      e => reject(new Error(e.message || 'Location blocked')),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  });
+}
+
+async function shareLocation() {
+  try {
+    const pos = await getPosition();
+    state.origin = pos;
+    await api('/api/location', { uid: state.uid, ...pos });
+    toast('📍 Location saved', 'good');
+    return pos;
+  } catch (e) {
+    toast(`Location: ${e.message}`, 'warn');
+    return null;
   }
 }
 
@@ -411,7 +529,7 @@ async function saveProfile() {
     closeSheets();
     toast('Saved 💾', 'good');
     loadRecs();
-    if (other.length) toast('Unknown allergies keep food picks extra strict', '');
+    if (other.length) toast('Unknown allergies keep food picks extra strict');
   } catch (e) {
     toast(e.message, 'warn');
   } finally {
@@ -419,12 +537,22 @@ async function saveProfile() {
   }
 }
 
-// ------------------------------------------------------------------ events
+// ------------------------------------------------------------------ navigation & events
 function switchView(name) {
+  state.view = name;
   $$('.view').forEach(v => v.classList.toggle('on', v.id === `view-${name}`));
   $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === name));
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  if (name === 'map') { initMap(); renderHelp(); setTimeout(() => state.map?.invalidateSize(), 200); }
+  if (name === 'sos') { renderHelp(); if (!state.maps.mapSos) renderSosMap(); }
+  if (name === 'stamps' && !state.maps.mapStamps) renderStampsMap();
+  refreshMapSize();
+}
+
+function openDirections(id) {
+  const r = state.recs.find(x => x.id === id);
+  if (!r) return;
+  api('/api/recommendations/event', { uid: state.uid, itemId: r.id, action: 'opened' }).catch(() => {});
+  window.open(directionsUrl(r), '_blank');
 }
 
 function bindEvents() {
@@ -432,25 +560,50 @@ function bindEvents() {
 
   $('#cats').addEventListener('click', e => {
     const b = e.target.closest('button');
-    if (!b) return;
+    if (!b || b.classList.contains('on')) return;
     $$('#cats button').forEach(x => x.classList.toggle('on', x === b));
     state.category = b.dataset.cat;
+    $('#recList').innerHTML = '<div class="rec skeleton"></div><div class="rec skeleton"></div>';
     loadRecs();
   });
 
+  // "Go" buttons in the list and in map popups
+  document.addEventListener('click', e => {
+    const go = e.target.closest('[data-go]');
+    if (go) { e.stopPropagation(); openDirections(go.dataset.go); }
+  });
+
+  // Tap a card -> show it on the map
   $('#recList').addEventListener('click', e => {
-    const b = e.target.closest('[data-go]');
-    if (!b) return;
-    const r = state.recs.find(x => x.id === b.dataset.go);
-    api('/api/recommendations/event', { uid: state.uid, itemId: r.id, action: 'opened' }).catch(() => {});
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}`, '_blank');
+    const card = e.target.closest('.rec[data-id]');
+    if (!card || e.target.closest('[data-go]')) return;
+    const m = state.recMarkers[card.dataset.id];
+    const entry = state.maps.mapHome;
+    if (!m || !entry) return;
+    $$('.rec.sel').forEach(x => x.classList.remove('sel'));
+    card.classList.add('sel');
+    window.scrollTo({ top: $('#mapHome').getBoundingClientRect().top + window.scrollY - 70, behavior: 'smooth' });
+    entry.map.flyTo(m.getLatLng(), 13, { duration: .6 });
+    setTimeout(() => m.openPopup(), 650);
   });
 
   $('#btnLocate').addEventListener('click', async () => {
     const pos = await shareLocation();
-    if (pos) { $('#recWhy').textContent = 'Sorted by what is close to you right now'; loadRecs(); }
+    if (pos) { $('#recWhy').textContent = 'sorted by what is near you'; loadRecs(); }
   });
-  $('#btnShareLoc').addEventListener('click', async () => { await shareLocation(); loadTourist({ celebrate: false }); });
+  $('#btnShareLoc').addEventListener('click', async () => {
+    await shareLocation();
+    await loadTourist({ celebrate: false });
+    renderSosMap();
+    renderHelp();
+  });
+
+  $('#helpList').addEventListener('click', e => {
+    const item = e.target.closest('.help-item');
+    if (!item || e.target.closest('a')) return;
+    state.maps.mapSos?.map.flyTo([+item.dataset.lat, +item.dataset.lng], 14, { duration: .6 });
+    window.scrollTo({ top: $('#mapSos').getBoundingClientRect().top + window.scrollY - 70, behavior: 'smooth' });
+  });
 
   $('#btnEdit').addEventListener('click', openEdit);
   $('#btnSave').addEventListener('click', saveProfile);
@@ -460,7 +613,6 @@ function bindEvents() {
     if (e.target === s || e.target.closest('[data-close]')) closeSheets();
   }));
 
-  $('#sosFab').addEventListener('click', () => { renderHelp(); openSheet('#sheetSos'); });
   setupHold();
   $('#btnSosCancel').addEventListener('click', async () => {
     if (!activeSos) return;
@@ -468,7 +620,7 @@ function bindEvents() {
     catch (e) { toast(e.message, 'warn'); }
   });
 
-  $('#btnRedeem').addEventListener('click', () => { $('#inPin').value = ''; openSheet('#sheetRedeem'); });
+  $('#btnRedeem').addEventListener('click', () => { $('#inPin').value = ''; openSheet('#sheetRedeem'); setTimeout(() => $('#inPin').focus(), 250); });
   $('#btnConfirmRedeem').addEventListener('click', async () => {
     try {
       const r = await api('/api/redeem', { uid: state.uid, pin: $('#inPin').value });
@@ -483,7 +635,7 @@ function bindEvents() {
   // demo tools
   $('#btnUv').addEventListener('click', () => {
     state.sunOnBead = !state.sunOnBead;
-    $('#bead').classList.toggle('sun', state.sunOnBead);
+    renderUv();
     toast(state.sunOnBead ? '☀️ Bead turns tangerine in direct sun' : '🌥️ Bead back to pearl white in shade');
   });
   $('#btnSwitch').addEventListener('click', () => {
@@ -512,7 +664,7 @@ function renderDemo() {
   const cfg = state.config;
   if (!cfg.demoMode) return;
   $('#demoTools').classList.remove('hidden');
-  $('#demoTaps').innerHTML = cfg.stations.map(s => `<button class="btn small ${s.kind === 'place' ? 'sea' : s.kind === 'activity' ? 'leaf' : ''}" data-tap="${s.id}">${cfg.kinds[s.kind].emoji} Tap ${esc(cfg.kinds[s.kind].label)} station</button>`).join('');
+  $('#demoTaps').innerHTML = cfg.stations.map(s => `<button class="btn small ${s.kind === 'place' ? 'sea' : s.kind === 'activity' ? 'leaf' : ''}" data-tap="${s.id}">${cfg.kinds[s.kind].emoji} Tap ${esc(cfg.kinds[s.kind].label)}</button>`).join('');
   $('#demoTags').innerHTML = ['04DBCE42CA2A81', 'FA1D2207', '2E720204', 'BEAD_001', 'BEAD_002']
     .map(u => `<a class="chip ${u === state.uid ? 'tan' : ''}" href="/${u}">${u}</a>`).join('');
 }
@@ -524,8 +676,10 @@ function renderDemo() {
     state.config = await api('/api/config');
     renderDemo();
     await loadTourist({ celebrate: false });
-    loadRecs();
+    await loadRecs();
     startSync();
+    const start = location.hash.replace('#', '');
+    if (['sos', 'stamps', 'me'].includes(start)) switchView(start);
   } catch (e) {
     setLive(false, 'Offline');
     toast(`Could not reach server: ${e.message}`, 'warn');
