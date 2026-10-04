@@ -1,44 +1,51 @@
-# Jeju wish-band: 3D design
+# Jeju wish-band: device enclosures (3D)
 
-Printable 3D models for the Jeju wish-band bracelet and the check-in station, with renders and dimensioned drawings.
+Printable 3D enclosures for the two Jeju wish-band devices: the **admin desk unit** used by staff to register bands, and the **check-in station** used at food, place and activity stops. The folder also has renders and dimensioned drawings.
 
-![overview](renders/jeju-wish-band-3d-overview.png)
+![overview](renders/jeju-wish-band-devices-overview.png)
 
 ## What is here
 
 | Folder | Contents |
 |---|---|
-| `stl/` | Print-ready STL files, already in print orientation (flat side on the bed). `scene.json` lists sizes, volumes and bead counts. |
-| `drawings/` | `jeju-wish-band-3d-drawings.pdf`: two A3 sheets with dimensions (wristband at 2:1, station at 1:1). Print at 100 % and the scale is true. PNG copies of each sheet are included. |
-| `renders/` | Overview poster (PNG + PDF) and separate renders: tap check-in, charm exploded, station exploded, bracelet in shade and in sun. |
-| `source/` | Parametric source. `models.py` builds every STL; `drawing.py` makes the drawings; `render.html`, `render_shots.mjs` and `compose_overview.py` make the renders. |
+| `stl/` | Print-ready STL files, already placed the right way up for printing. `scene.json` lists every size and volume. |
+| `drawings/` | `jeju-wish-band-device-drawings.pdf` has two A3 sheets at 1:1: sheet 1 is the admin desk unit and sheet 2 is the check-in station. Print at 100 % and the sizes are true. PNG copies of each sheet are included. |
+| `renders/` | The overview poster (PNG + PDF), both devices together, and each device whole and exploded. |
+| `source/` | Parametric source. `models.py` builds the STLs and `drawing.py` makes the drawings. `render.html`, `render_shots.mjs` and `compose_overview.py` make the renders. |
 
-## Parts
+## Devices
 
-| Part | Qty | Material | Size (mm) |
+| Device | Firmware | Parts to print | Outside size (mm) |
 |---|---|---|---|
-| `wristband_charm_base.stl` | 1 | basalt grey PLA | 34 × 34 × 7.5 |
-| `wristband_charm_cap.stl` (Hallabong) | 1 | tangerine PLA | 31.6 × 31.6 × 13.3 |
-| `wristband_basalt_bead.stl` | 13 / 15 / 16 for S / M / L | black or stone PLA | Ø10 × 8.4, hole Ø2 |
-| `wristband_uv_bead.stl` | 1 | UV colour-change PLA | Ø12 × 10.4, hole Ø2 |
-| `station_base.stl` | 1 per station | basalt grey PLA or PETG | 100 × 76 × 40 |
-| `station_lid.stl` | 1 per station | cream PLA or PETG | 100 × 76 × 3 plus skirt |
+| Admin desk unit | `firmware/admin` (ESP32 + PN532 over I2C) | `admin_shell.stl` (tangerine), `admin_bottom_plate.stl` (basalt grey) | 110 × 90 × 55.6, top sloped 18° |
+| Check-in station | `firmware/food`, `place`, `activity` (ESP32 + RC522) | `station_base.stl` (basalt grey), `station_lid.stl` (cream) | 100 × 76 × 43 |
 
-Bought parts: NTAG215 Ø25 mm NFC sticker, 1 mm clear elastic cord (about 25 cm per band), CA glue. Per station: ESP32 DevKitC, RC522 (or PN532 for the admin desk), 12 mm buzzer, 5 mm LED, four M3 × 8 self-tapping screws, four Ø10 rubber feet.
+Both devices also need an ESP32 DevKitC, a 12 mm buzzer on GPIO 4, a 5 mm LED on GPIO 2, four M3 self-tapping screws and four Ø10 rubber feet.
+
+**Admin desk unit.** Staff place the wristband charm in the Ø50 tray on the sloped top, and a small lip stops it sliding off. The PN532 is held in a frame under the tray and reads through 1.2 mm of plastic. The ESP32 sits in a cradle on the bottom plate with its USB port at the back wall. The shell is printed lying on its sloped top, so it needs no supports.
+
+**Check-in station.** Tourists tap the charm on the Ø46 circle on the lid. The RC522 is held in a frame under the lid and reads through 2.2 mm of plastic. The ESP32 sits in a floor cradle with its USB port at the left wall.
+
+**Can one enclosure do both jobs?** Yes. The reader frame in the station lid also takes a PN532, so a printed station can serve as the admin unit with no changes. The admin unit is a separate design because a sloped desk tray is easier for staff to use.
 
 ## Assembly
 
-1. **Charm:** stick the NFC tag in the pocket of the charm base, add a drop of CA glue on the rim, press the cap in.
-2. **Bracelet:** thread the elastic cord through the charm channel, the UV bead and the basalt beads, then tie a surgeon's knot and pull it inside the charm channel.
-3. **Station:** clip the ESP32 into the floor cradle with its USB port at the side opening. Fix the RC522 in the frame under the lid with foam tape, with the antenna end under the tap circle. Push the buzzer and LED into their tubes under the lid, then screw the lid on.
+1. Push the buzzer and LED into their tubes under the top.
+2. Stick the reader board into its frame with foam tape.
+3. Clip the ESP32 into its cradle with the USB port facing the opening.
+4. Close the enclosure with four M3 screws and add the rubber feet.
 
 ## Assumed sizes (check yours before printing)
 
-ESP32 DevKitC V4 54.4 × 27.9 mm with pins pointing down; RC522 60 × 40 mm; PN532 V3 42.7 × 40.4 mm; buzzer Ø12 × 9.5 mm; LED 5 mm; NTAG215 sticker Ø25 × 1 mm; adult wrist 150 / 165 / 180 mm.
+- ESP32 DevKitC V4: 54.4 × 27.9 mm, header pins pointing down
+- RC522: 60 × 40 mm
+- PN532 V3: 42.7 × 40.4 mm
+- Buzzer: Ø12 × 9.5 mm
+- LED: 5 mm
 
 ## Changing the design
 
-Every size is in `PARAMS` at the top of `source/models.py`. Change a number and rebuild:
+Every size is in `PARAMS` at the top of `source/models.py`. Change a number, then rebuild:
 
 ```bash
 pip install manifold3d trimesh numpy matplotlib shapely networkx
@@ -47,6 +54,9 @@ python3 models.py     # writes ../stl/*.stl
 python3 drawing.py    # writes ../drawings/
 ```
 
-If the cap is too tight or too loose on your printer, change `fit_clearance` (default 0.2 mm per side).
+To rebuild the renders:
 
-Renders: in `source/`, run `npm i three playwright && npx playwright install chromium`, copy `../stl/scene.json` into `_render_parts/`, then run `node render_shots.mjs hero exploded charm bracelet "bracelet?uv=1"` and `python3 compose_overview.py`.
+1. In `source/`, run `npm i three playwright && npx playwright install chromium`.
+2. Copy `../stl/scene.json` into `_render_parts/`.
+3. Run `node render_shots.mjs family admin admin_exploded station station_exploded`.
+4. Run `python3 compose_overview.py`.

@@ -1,5 +1,5 @@
 """
-Dimensioned drawings for the Jeju wish-band 3D parts.
+Dimensioned drawings for the Jeju wish-band devices (admin desk unit, check-in station).
 Writes ../drawings/jeju-wish-band-3d-drawings.pdf (A3, two sheets) and a PNG of each sheet.
 Drawn at true scale: print the PDF on A3 at 100 % and the stated scale holds.
 
@@ -165,116 +165,103 @@ class Sheet:
         return y - h
 
 
-def sheet_wristband(pdf):
-    sh = Sheet("Wristband", "Hallabong NFC charm · basalt beads · UV bead", 1)
+def sheet_admin(pdf):
+    sh = Sheet("Admin desk unit", "Sloped shell + bottom plate for ESP32 + PN532", 1)
     a = sh.ax
-    s = 2.0
-    base, cap = load("wristband_charm_base"), load("wristband_charm_cap")
-    cap.apply_translation((0, 0, P["charm_base_h"]))
-    bead, uvb = load("wristband_basalt_bead"), load("wristband_uv_bead")
-    R = P["charm_d"] / 2
+    s = 1.0
+    shell, plate = load("admin_shell"), load("admin_bottom_plate")
+    W, D, t = P["adm_w"], P["adm_d"], P["wall"]
+    sl = math.radians(P["adm_slope"])
+    k = math.tan(sl)
+    hf = P["adm_front_h"]
+    hr = hf + k * D
+    T = P["adm_plate_t"]
+    u0, v0 = P["adm_reader_u"], P["adm_reader_v"]
 
-    # 1. charm top view
-    ox, oy = 62, 212
-    sh.shape(silhouette(base, "top"), ox, oy, s, fc="#d9d6d0")
-    sh.shape(silhouette(cap, "top"), ox, oy, s, fc="#f9d4ab")
-    sh.view_title(ox, 268, "Charm, top view", "2:1")
-    sh.dim((-R, 0), (R, 0), -R * s - 8, f"Ø{P['charm_d']:.0f}", s, ox, oy)
-    capR = R - P["charm_rim_w"] - P["fit_clearance"]
-    sh.dim((-capR, 0), (capR, 0), capR * s + 2 - 0 + 6, f"Ø{2 * capR:.1f} cap", s, ox, oy)
-    sh.leader((R - 0.5, -6), (ox + R * s + 6, oy - 22), "cord channel\nexits both sides", s, ox, oy)
+    # 1. view square to the sloped top
+    top = shell.copy()
+    top.apply_transform(trimesh.transformations.rotation_matrix(-sl, (1, 0, 0)))
+    a_, k_, z0_ = math.radians(P["adm_slope"]), k, hf + k * D / 2
+    zt = z0_ * math.cos(sl)          # the sloped top surface, now level
+    ox, oy = 92, 194
+    sh.shape(silhouette(top, "top"), ox, oy, s, fc="#fde3c4")
+    sh.lines(section(top, 2, zt - 0.6, "top"), ox, oy, s, lw=0.35)
+    sh.lines(section(top, 2, zt + 0.3, "top"), ox, oy, s, lw=0.35)
+    sh.view_title(ox, 266, "Shell, view square to the sloped top", "1:1")
+    yb = float(top.bounds[0][1])
+    ytp = float(top.bounds[1][1])
+    sh.dim((-W / 2, ytp), (W / 2, ytp), 6, f"{W:.0f}", s, ox, oy)
+    sh.dim((W / 2, yb), (W / 2, ytp), 6, f"{ytp - yb:.1f} along the slope", s, ox, oy, vertical=True)
+    ym = (yb + ytp) / 2
+    sh.dim((u0 - P["tray_d"] / 2, yb), (u0 + P["tray_d"] / 2, yb), -6,
+           f"wristband tray Ø{P['tray_d']:.0f}, {P['tray_depth']} deep", s, ox, oy)
+    sh.leader((36, ym - 22), (ox + W / 2 + 12, oy - 34), f"buzzer grille (Ø{P['buzzer_d']:.0f})", s, ox, oy)
+    sh.leader((36, ym + 18), (ox + W / 2 + 12, oy + 30), f"LED window Ø{P['led_d'] + 0.3:.1f}", s, ox, oy)
+    sh.leader((u0 - 10, ym + v0 - P["tray_d"] / 2 - 2.2), (ox - W / 2 - 8, oy - 36), "band stop lip", s, ox, oy)
 
-    # 2. charm section A-A (XZ through centre)
-    ox, oy = 172, 196
-    sec_b = section(base, 1, 0.0, "front")
-    sec_c = section(cap, 1, 0.0, "front")
-    sh.shape(sec_b, ox, oy, s, fc="#bdbab3", hatch="////")
-    sh.shape(sec_c, ox, oy, s, fc=SEC, hatch="\\\\\\\\")
-    # NFC tag in its pocket
-    tz = P["charm_base_h"] - P["tag_t"] - 0.4
-    a.add_patch(Rectangle((ox - P["tag_d"] / 2 * s, oy + tz * s), P["tag_d"] * s, P["tag_t"] * s, fc=SEA, ec=INK, lw=0.4, zorder=5))
-    sh.view_title(ox, 268, "Charm assembly, section A-A", "2:1")
-    sh.dim((-R, 0), (-R, P["charm_base_h"]), -10, f"{P['charm_base_h']:.1f}", s, ox, oy, vertical=True)
-    top = float(cap.bounds[1][2])
-    sh.dim((R, 0), (R, top), 6, f"{top:.1f} overall", s, ox, oy, vertical=True)
-    sh.dim((-P["tag_d"] / 2 - 0.3, 0), (P["tag_d"] / 2 + 0.3, 0), -12, f"tag pocket Ø{P['tag_d'] + 0.6:.1f} × {P['tag_t'] + 0.4:.1f} deep", s, ox, oy)
-    sh.leader((-R + 3, 2.2), (ox - R * s - 10, oy - 22), f"cord channel Ø{P['channel_d']}", s, ox, oy)
-    sh.leader((6, tz + 0.5), (ox + R * s + 16, oy + 30), f"NTAG215 Ø{P['tag_d']:.0f} × {P['tag_t']:.0f}", s, ox, oy)
-    sh.leader((R - 0.6, P["charm_base_h"] + 1.0), (ox + R * s + 16, oy + 14), f"rim {P['charm_rim_h']} high,\ncap press-fit + glue", s, ox, oy)
+    # 2. right side view with section A-A through the tray centre
+    ox, oy = 92, 62
+    sh.shape(silhouette(shell, "side"), ox, oy + T, s, fc="#fde3c4")
+    sh.shape(section(shell, 0, u0, "side"), ox, oy + T, s, fc=SEC, hatch="\\\\\\\\")
+    sh.shape(silhouette(plate, "side"), ox, oy + T, s, fc="#bdbab3")
+    sh.view_title(ox, 128, "Side view + section A-A (through the tray)", "1:1")
+    sh.dim((-D / 2, -T), (-D / 2, hf), -6, f"{hf + T:.1f}", s, ox, oy + T, vertical=True)
+    sh.dim((D / 2, -T), (D / 2, hr), 6, f"{hr + T:.1f}", s, ox, oy + T, vertical=True)
+    sh.dim((-D / 2, -T), (D / 2, -T), -6, f"{D:.0f}", s, ox, oy + T)
+    a.text(ox - D / 2 + 22, oy + T + hf + 6, f"{P['adm_slope']:.0f}°", fontsize=8, color=SEA)
+    a.plot([ox - D / 2 + 4, ox - D / 2 + 34], [oy + T + hf + 1.3, oy + T + hf + 1.3], color=SEA, lw=0.3)
+    yv = v0 * math.cos(sl)
+    sh.leader((yv, hf + k * (D / 2 + yv) - t - 1), (ox + D / 2 + 12, oy + 52),
+              f"PN532 under the {t:.1f} mm top;\nreads through {t - P['tray_depth']:.1f} mm at the tray", s, ox, oy + T)
+    sh.leader((D / 2 - t / 2, P["esp32_lift"] + 2.8), (ox + D / 2 + 12, oy + 22), "USB cable opening\n(rear wall)", s, ox, oy + T)
 
-    # 3. cap front view
-    ox, oy = 300, 206
-    sh.shape(silhouette(cap.copy().apply_translation((0, 0, -P["charm_base_h"])), "front"), ox, oy, s, fc="#f9d4ab")
-    sh.view_title(ox, 268, "Cap, front view", "2:1")
-    ch = float(cap.bounds[1][2] - cap.bounds[0][2])
-    sh.dim((capR, 0), (capR, ch), 8, f"{ch:.1f}", s, ox, oy, vertical=True)
-    sh.leader((0, ch - 0.5), (ox - 40, oy + ch * s + 8), "Hallabong knot, stem and leaf", s, ox, oy)
+    # 3. bottom plate, section at 4 mm (top view)
+    ox, oy = 268, 208
+    sh.shape(silhouette(plate, "top"), ox, oy, s, fc="#f1eee8")
+    sh.shape(section(plate, 2, 4.0, "top"), ox, oy, s, fc="#bdbab3", hatch="////")
+    sh.view_title(ox, 266, "Bottom plate, section at 4 mm", "1:1")
+    sh.dim((-W / 2, D / 2), (W / 2, D / 2), 6, f"{W:.0f}", s, ox, oy)
+    sh.dim((W / 2, -D / 2), (W / 2, D / 2), 6, f"{D:.0f}", s, ox, oy, vertical=True)
+    bx, by = W / 2 - 7, D / 2 - 7
+    sh.dim((-bx, -D / 2), (bx, -D / 2), -6, f"M3 holes {2 * bx:.0f} × {2 * by:.0f} c/c, countersunk from below", s, ox, oy)
+    sh.leader((P["adm_esp32_x"] + 10, D / 2 - 6), (ox + W / 2 + 12, oy + 30), "ESP32 cradle,\nUSB to the rear", s, ox, oy)
+    sh.leader((-W / 2 + t + 1.5, 0), (ox - W / 2 - 8, oy + 10), "locating skirt 3 high", s, ox, oy)
 
-    # 4. beads (section through hole axis)
-    for i, (m, name, d, txt) in enumerate([(bead, "Basalt bead", P["bead_d"], "dark grey / black PLA"),
-                                          (uvb, "UV bead", P["uv_bead_d"], "UV colour-change filament")]):
-        ox, oy = 368 + i * 0, 228 - i * 48
-        sh.shape(section(m, 1, 0.0, "front"), ox, oy, s, fc="#bdbab3" if i == 0 else "#f3efe8", hatch="////")
-        hgt = float(m.bounds[1][2] - m.bounds[0][2])
-        sh.dim((-d / 2, 0), (d / 2, 0), -6, f"Ø{d:.0f}", s, ox, oy)
-        sh.dim((d / 2, 0), (d / 2, hgt), 5, f"{hgt:.1f}", s, ox, oy, vertical=True)
-        sh.label(ox, oy + hgt * s + 4, f"{name}, section", 8, ha="center", weight="bold")
-        sh.label(ox, oy - 17, f"hole Ø{P['cord_hole_d']:.1f} · {txt}", 6.2, ha="center", color="#555")
+    # 4. rear view (USB opening)
+    ox, oy = 268, 74
+    rear = section(shell, 1, D / 2 - 1.0, "front")
+    sh.shape(silhouette(shell, "front"), ox, oy + T, s, fc="#fde3c4")
+    sh.shape(rear, ox, oy + T, s, fc=SEC, hatch="\\\\\\\\")
+    sh.shape(silhouette(plate, "front"), ox, oy + T, s, fc="#bdbab3")
+    sh.view_title(ox, 140, "Rear view (section just inside the back wall)", "1:1")
+    uw, uh = P["usb_cut"]
+    uz = P["esp32_lift"] + 1.6 + 1.2
+    ux = P["adm_esp32_x"]
+    sh.dim((ux - uw / 2, uz - uh / 2), (ux + uw / 2, uz - uh / 2), -8, f"{uw:.0f}", s, ox, oy + T)
+    sh.leader((ux, uz), (ox + W / 2 + 8, oy + 40), f"USB opening {uw:.0f} × {uh:.0f}\ncentre {uz + T:.1f} above table", s, ox, oy + T)
 
-    # 5. bracelet layout (1:1, schematic)
-    ox, oy, s1 = 80, 92, 1.0
-    L = scene["bracelet"]["M"]
-    Rc = L["centre_radius"]
-    a.add_patch(Circle((ox, oy), Rc, fill=False, ec="#999", lw=0.3, ls=(0, (4, 2))))
-    for kind, th in L["items"]:
-        cx, cy = ox + Rc * math.cos(th), oy + Rc * math.sin(th)
-        if kind == "charm":
-            w, h = P["charm_d"], P["charm_base_h"] + 9
-            h = float(scene["parts"]["wristband_charm_base"]["size_mm"][2]) + float(scene["parts"]["wristband_charm_cap"]["size_mm"][2]) - P["charm_rim_h"]
-            cx, cy = ox + (Rc - P["bead_d"] / 2) * math.cos(th), oy + (Rc - P["bead_d"] / 2) * math.sin(th)
-            t = Rectangle((cx, cy - w / 2), h, w, fc="#f9d4ab", ec=INK, lw=0.5)
-            from matplotlib.transforms import Affine2D
-            t.set_transform(Affine2D().rotate_around(cx, cy, th) + a.transData)
-            a.add_patch(t)
-        else:
-            d = P["uv_bead_d"] if kind == "uv" else P["bead_d"]
-            a.add_patch(Circle((cx, cy), d / 2, fc="#f3efe8" if kind == "uv" else "#3a3b40", ec=INK, lw=0.4))
-    inner = Rc - P["bead_d"] / 2
-    a.add_patch(Circle((ox, oy), inner, fill=False, ec=TAN, lw=0.6))
-    sh.dim((-inner, 0), (inner, 0), -inner - 12, f"inner Ø{2 * inner:.1f} (wrist {scene['params']['wrist_sizes']['M']} mm)", 1, ox, oy)
-    sh.view_title(ox, 148, "Bracelet layout, size M (top view)", "1:1")
-    sh.label(ox - 52, oy + 40, "charm faces out,\nflat base on the wrist", 6.2, color="#555")
-
-    # sizes + BOM + print notes
-    rows = []
-    for k, v in scene["bracelet"].items():
-        rows.append(f"{k}: wrist {P['wrist_sizes'][k]} mm  →  {v['basalt_beads']} basalt beads + 1 UV bead + charm")
-    y = sh.note_box(150, 150, 120, rows + ["Elastic cord Ø1.0 mm clear, about 25 cm per band;", "surgeon's knot hidden inside the charm channel."], "Sizes (elastic stretch fit)")
-    sh.note_box(150, y - 4, 120, [
-        "Charm base   PLA basalt grey   0.12 mm layers, 100 % infill",
-        "Charm cap    PLA tangerine     flat side down; supports off",
-        "Basalt bead  PLA black/stone   hole vertical, 20 % infill",
-        "UV bead      UV colour-change PLA (white → colour in sun)",
-        "NFC tag      NTAG215 Ø25 mm sticker, placed before the cap",
-        "Glue         a drop of CA glue on the rim before pressing cap",
-    ], "Parts and printing")
-    sh.note_box(278, 150, 134, [
-        "• Tag Ø25 × 1.0 mm (common NTAG215 coin sticker).",
-        "• Read distance through the 1.5 mm cap floor: the tag",
-        "  faces the reader when the charm is tapped face-down.",
-        "• Pocket and rim gaps 0.2–0.3 mm per side; tune",
-        "  `fit_clearance` in models.py for your printer.",
-        "• The beads are copies of one STL: print 13 / 15 / 16.",
-        "• Real volcanic basalt beads (10 mm, Ø2 hole) can",
-        "  replace the printed ones with no other change.",
-    ], "Assumptions")
+    sh.note_box(14, 46, 120, [
+        "ESP32 DevKitC V4   54.4 × 27.9 mm, pins down",
+        "PN532 V3 board     42.7 × 40.4 mm, I2C (SDA 21, SCL 22)",
+        "Buzzer             Ø12 × 9.5 mm, GPIO 4",
+        "LED                5 mm, GPIO 2",
+        "Screws             M3 × 10 self-tapping, countersunk ×4",
+        "Feet               Ø10 rubber bumpers ×4",
+    ], "Components (sizes assumed, check yours)")
+    sh.note_box(138, 46, 120, [
+        "Shell: tangerine PLA/PETG. The STL lies on its",
+        "sloped top, so it prints with no supports.",
+        "Plate: basalt grey, flat side down.",
+        "0.2 mm layers, 3 walls, 15–20 % infill.",
+        "PN532: foam tape in the frame under the tray.",
+    ], "Printing and assembly")
     pdf.savefig(sh.fig)
-    sh.fig.savefig(os.path.join(OUT, "sheet1-wristband.png"), dpi=200)
+    sh.fig.savefig(os.path.join(OUT, "sheet1-admin-desk-unit.png"), dpi=200)
     plt.close(sh.fig)
 
 
 def sheet_station(pdf):
-    sh = Sheet("Check-in station", "Enclosure base + lid for ESP32 + RC522 / PN532", 2)
+    sh = Sheet("Check-in station", "Food / place / activity · base + lid for ESP32 + RC522", 2)
     a = sh.ax
     s = 1.0
     base, lid = load("station_base"), load("station_lid")
@@ -364,14 +351,14 @@ def sheet_station(pdf):
         "the PN532 for the admin desk.",
     ], "Printing and assembly")
     pdf.savefig(sh.fig)
-    sh.fig.savefig(os.path.join(OUT, "sheet2-station.png"), dpi=200)
+    sh.fig.savefig(os.path.join(OUT, "sheet2-checkin-station.png"), dpi=200)
     plt.close(sh.fig)
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    with PdfPages(os.path.join(OUT, "jeju-wish-band-3d-drawings.pdf")) as pdf:
-        sheet_wristband(pdf)
+    with PdfPages(os.path.join(OUT, "jeju-wish-band-device-drawings.pdf")) as pdf:
+        sheet_admin(pdf)
         sheet_station(pdf)
     print("wrote", OUT)
 
