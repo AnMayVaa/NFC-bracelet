@@ -1,0 +1,211 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#fbf4e8;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const q = new URLSearchParams(location.search);
+const view = q.get('view') || 'hero';
+const W = +(q.get('w') || 1600), H = +(q.get('h') || 1000);
+const uvOn = q.get('uv') === '1';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#fbf4e8');
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.55;
+
+const sun = new THREE.DirectionalLight('#fff3df', 2.4);
+sun.position.set(-120, -160, 260);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -200, right: 200, top: 200, bottom: -200, near: 1, far: 800 });
+sun.shadow.bias = -0.0004;
+sun.shadow.radius = 6;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight('#fff8ee', '#d9c7aa', 0.5));
+
+THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.ShadowMaterial({ opacity: 0.18 }));
+floor.receiveShadow = true;
+scene.add(floor);
+
+const mat = {
+  basalt: new THREE.MeshStandardMaterial({ color: '#34363b', roughness: 0.92, metalness: 0.0 }),
+  basaltBead: new THREE.MeshStandardMaterial({ color: '#2b2c30', roughness: 0.85 }),
+  tangerine: new THREE.MeshStandardMaterial({ color: '#f28a22', roughness: 0.55 }),
+  cream: new THREE.MeshStandardMaterial({ color: '#f4ead8', roughness: 0.6 }),
+  pearl: new THREE.MeshPhysicalMaterial({ color: '#f6f1ea', roughness: 0.25, clearcoat: 0.6 }),
+  uvOn: new THREE.MeshPhysicalMaterial({ color: '#f5761a', roughness: 0.3, clearcoat: 0.6 }),
+  sea: new THREE.MeshStandardMaterial({ color: '#2f7fb5', roughness: 0.6 }),
+  pcbGreen: new THREE.MeshStandardMaterial({ color: '#1f5e3a', roughness: 0.5 }),
+  pcbBlue: new THREE.MeshStandardMaterial({ color: '#1f4fa8', roughness: 0.5 }),
+  metal: new THREE.MeshStandardMaterial({ color: '#c9ccd1', roughness: 0.3, metalness: 0.9 }),
+  black: new THREE.MeshStandardMaterial({ color: '#141414', roughness: 0.6 }),
+  led: new THREE.MeshStandardMaterial({ color: '#7fe08a', emissive: '#3cff6a', emissiveIntensity: 1.2, roughness: 0.2 }),
+  tag: new THREE.MeshStandardMaterial({ color: '#dcd6cc', roughness: 0.4 }),
+};
+
+const scene_json = await (await fetch('_render_parts/scene.json')).json();
+const P = scene_json.params;
+const loader = new STLLoader();
+const geo = {};
+for (const n of ['station_base', 'station_lid', 'wristband_basalt_bead', 'wristband_charm_base', 'wristband_charm_cap', 'wristband_uv_bead']) {
+  const g = await loader.loadAsync('_render_parts/' + n + '.stl');
+  g.computeVertexNormals();
+  geo[n] = g;
+}
+function mesh(g, m) { const x = new THREE.Mesh(g, m); x.castShadow = true; x.receiveShadow = true; return x; }
+
+// smooth-shade beads: STL is flat-faceted, so merge vertices for nicer normals
+import('three/addons/utils/BufferGeometryUtils.js').then(() => {});
+const BGU = await import('three/addons/utils/BufferGeometryUtils.js');
+for (const n of ['wristband_uv_bead', 'wristband_charm_cap']) {
+  geo[n].deleteAttribute('normal'); const g = BGU.mergeVertices(geo[n], 1e-4); g.computeVertexNormals(); geo[n] = g;
+}
+{ geo['wristband_basalt_bead'].deleteAttribute('normal'); const g = BGU.mergeVertices(geo['wristband_basalt_bead'], 1e-4); g.computeVertexNormals(); geo['wristband_basalt_bead'] = g; }
+
+function bracelet(size = 'M') {
+  const grp = new THREE.Group();
+  const L = scene_json.bracelet[size];
+  const R = L.centre_radius;
+  for (const [kind, th] of L.items) {
+    const t = new THREE.Vector3(-Math.sin(th), Math.cos(th), 0);   // tangent
+    const r = new THREE.Vector3(Math.cos(th), Math.sin(th), 0);    // outward
+    const z = new THREE.Vector3(0, 0, 1);
+    if (kind === 'charm') {
+      const g = new THREE.Group();
+      g.add(mesh(geo.wristband_charm_base, mat.basalt));
+      const cap = mesh(geo.wristband_charm_cap, mat.tangerine); cap.position.z = P.charm_base_h; g.add(cap);
+      // local X = tangent, local Y = -z (axial), local Z = outward
+      const m4 = new THREE.Matrix4().makeBasis(t, new THREE.Vector3().crossVectors(r, t), r);
+      g.setRotationFromMatrix(m4);
+      g.position.copy(r.clone().multiplyScalar(R - P.bead_d / 2));
+      grp.add(g);
+    } else {
+      const d = kind === 'uv' ? P.uv_bead_d : P.bead_d;
+      const zc = d / 2 - P.bead_flat;
+      const g = new THREE.Group();
+      const b = mesh(kind === 'uv' ? geo.wristband_uv_bead : geo.wristband_basalt_bead,
+        kind === 'uv' ? (uvOn ? mat.uvOn : mat.pearl) : mat.basaltBead);
+      b.position.z = -zc;
+      // random spin about the hole so pores don't line up
+      const spin = new THREE.Group(); spin.rotation.z = (th * 7.3) % (Math.PI * 2); spin.add(b);
+      g.add(spin);
+      const m4 = new THREE.Matrix4().makeBasis(r, new THREE.Vector3().crossVectors(t, r), t);
+      g.setRotationFromMatrix(m4);
+      g.position.copy(r.clone().multiplyScalar(R));
+      grp.add(g);
+    }
+  }
+  // elastic cord
+  const curve = new THREE.EllipseCurve(0, 0, R, R);
+  const pts = curve.getPoints(200).map(p => new THREE.Vector3(p.x, p.y, 0));
+  const cord = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 200, 0.5, 8, true),
+    new THREE.MeshStandardMaterial({ color: '#2a2a2a', roughness: 0.7 }));
+  grp.add(cord);
+  return grp;
+}
+
+function station(explode = 0, internals = false) {
+  const grp = new THREE.Group();
+  grp.add(mesh(geo.station_base, mat.basalt));
+  const lid = mesh(geo.station_lid, mat.cream);
+  lid.position.z = P.box_h + explode;
+  grp.add(lid);
+  if (internals) {
+    const f = P.floor, lift = P.esp32_lift;
+    const [ex, ey] = P.esp32;
+    const x0 = -P.box_w / 2 + P.wall + 0.6;
+    const esp = new THREE.Group();
+    const pcb = mesh(new RoundedBoxGeometry(ex, ey, 1.6, 2, 0.4), mat.pcbGreen); pcb.position.set(ex / 2, 0, 0.8); esp.add(pcb);
+    const can = mesh(new RoundedBoxGeometry(18, 25.5, 3.2, 2, 0.3), mat.metal); can.position.set(ex - 10, 0, 3.2); esp.add(can);
+    const usb = mesh(new RoundedBoxGeometry(5.6, 7.5, 2.8, 2, 0.4), mat.metal); usb.position.set(2.4, 0, 3.0); esp.add(usb);
+    for (const s of [-1, 1]) for (let i = 0; i < 19; i++) {
+      const pin = mesh(new THREE.BoxGeometry(0.64, 0.64, 8.5), mat.metal); pin.position.set(4.6 + i * 2.54, s * (ey / 2 - 1.3), -4.2); esp.add(pin);
+      const hd = mesh(new THREE.BoxGeometry(2.5, 2.5, 2.5), mat.black); hd.position.set(4.6 + i * 2.54, s * (ey / 2 - 1.3), -1.3); esp.add(hd);
+    }
+    esp.position.set(x0, 0, f + lift + explode * 0.25);
+    grp.add(esp);
+    // RC522 under the lid
+    const [rw, rd] = P.rc522;
+    const rc = new THREE.Group();
+    const b = mesh(new RoundedBoxGeometry(rw, rd, 1.6, 2, 0.3), mat.pcbBlue); rc.add(b);
+    const ant = new THREE.Mesh(new THREE.TorusGeometry(14, 0.6, 8, 4, Math.PI * 2), mat.metal); ant.rotation.z = Math.PI / 4; ant.position.set(rw / 2 - 20, 0, 0.85); ant.scale.set(1.3, 1.3, 0.2); rc.add(ant);
+    const chip = mesh(new THREE.BoxGeometry(5, 5, 1), mat.black); chip.position.set(-rw / 2 + 12, 0, -1.2); rc.add(chip);
+    rc.position.set(P.reader_x, 0, P.box_h - 0.8 + explode * 0.72);
+    grp.add(rc);
+    const bz = mesh(new THREE.CylinderGeometry(6, 6, 9.5, 48), mat.black); bz.rotation.x = Math.PI / 2; bz.position.set(31, -20, P.box_h - 4.75 + explode * 0.62); grp.add(bz);
+    const led = mesh(new THREE.CylinderGeometry(2.5, 2.5, 7, 32), mat.led); led.rotation.x = Math.PI / 2; led.position.set(31, 20, P.box_h - 1 + explode * 0.72); grp.add(led);
+  }
+  return grp;
+}
+
+const cam = new THREE.PerspectiveCamera(30, W / H, 1, 5000);
+function look(pos, target) { cam.position.set(...pos); cam.lookAt(new THREE.Vector3(...target)); }
+
+if (view === 'hero') {
+  scene.add(station());
+  const b = bracelet('M');
+  b.rotation.set(0.0, 0, 0.35);
+  // lie flat on the table
+  b.rotation.set(0, 0, -0.5);
+  b.position.set(105, -30, 5.2);
+  scene.add(b);
+  const b2 = bracelet('M');
+  b2.rotateOnWorldAxis(new THREE.Vector3(1, 0, 0), Math.PI / 2); b2.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI / 2); b2.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), -0.25);
+  b2.position.set(P.tap_x, 0, P.box_h + P.lid_t + 9 + scene_json.bracelet.M.centre_radius + 13.5);
+  scene.add(b2);
+  look([170, -360, 250], [10, 0, 40]);
+} else if (view === 'exploded') {
+  scene.add(station(55, true));
+  look([200, -260, 210], [-5, 0, 45]);
+  cam.fov = 28;
+} else if (view === 'bracelet') {
+  const b = bracelet('M');
+  b.position.z = 5.2;
+  b.rotation.z = -Math.PI / 2;
+  scene.add(b);
+  look([0, -95, 120], [0, -4, 4]);
+} else if (view === 'charm') {
+  const g = new THREE.Group();
+  g.add(mesh(geo.wristband_charm_base, mat.basalt));
+  const tag = mesh(new THREE.CylinderGeometry(P.tag_d / 2, P.tag_d / 2, P.tag_t, 64), mat.sea);
+  tag.rotation.x = Math.PI / 2; tag.position.z = P.charm_base_h + 9; g.add(tag);
+  const cap = mesh(geo.wristband_charm_cap, mat.tangerine); cap.position.z = P.charm_base_h + 20; g.add(cap);
+  const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 70, 12), new THREE.MeshStandardMaterial({ color: '#2a2a2a' }));
+  cord.rotation.z = Math.PI / 2; cord.position.z = 2.2; g.add(cord);
+  for (const sx of [-1, 1]) { const bd = mesh(geo.wristband_basalt_bead, mat.basaltBead); bd.rotation.y = Math.PI / 2; bd.position.set(sx * (P.charm_d / 2 + 1 + (sx > 0 ? 0 : 8.4)), 0, 2.2 - 0); bd.position.x = sx > 0 ? P.charm_d / 2 + 1 : -P.charm_d / 2 - 1 - 8.4; bd.position.z = 2.2 + 0; scene.add(bd); }
+  g.position.z = 0;
+  scene.add(g);
+  look([60, -120, 95], [0, 0, 16]);
+} else if (view === 'tap') {
+  scene.add(station());
+  const b = bracelet('M');
+  // charm face down over the tap circle
+  const L = scene_json.bracelet.M;
+  b.rotation.set(0, Math.PI / 2, 0); b.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.5);
+  b.position.set(-8, 0, P.box_h + P.lid_t + 6 + L.centre_radius + 13.5);
+  scene.add(b);
+  look([170, -260, 200], [-5, 0, 40]);
+}
+cam.updateProjectionMatrix();
+renderer.render(scene, cam);
+window.__done = true;
+</script></body></html>
