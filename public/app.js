@@ -231,7 +231,7 @@ function refreshMapSize() {
 function renderProfile() {
   const t = state.tourist;
   if (!t) return;
-  const first = (t.name || 'traveler').split(/[\s(]/)[0];
+  const first = !t.name || /^Wish-band Guest/.test(t.name) ? 'traveler' : t.name.split(/[\s(]/)[0];
   $('#greetName').textContent = `Hello, ${first}!`;
   $('#uidTag').textContent = `wish-band ${t.uid}`;
   $('#meName').textContent = t.name;
@@ -269,7 +269,55 @@ function renderStamps(justStamped = []) {
     : '<li class="muted">No taps yet. Find a wish-band station on the map and tap your bracelet!</li>';
 
   renderVoucher();
+  renderRouteStrip();
   if (state.maps.mapStamps) renderStampsMap();
+}
+
+// Small progress bar on For You so nobody has to open Stamps to know what's next.
+function renderRouteStrip() {
+  const t = state.tourist, cfg = state.config;
+  const ordered = [...cfg.stations].sort((a, b) => a.order - b.order);
+  const got = ordered.filter(s => t.stamps?.[s.id]).length;
+  const v = t.voucher?.status;
+  const next = nextStation();
+  $('#routeBeads').innerHTML = ordered.map(s => `<i class="${t.stamps?.[s.id] ? 'on' : ''}">${cfg.kinds[s.kind].emoji}</i>`).join('');
+  const strip = $('#routeStrip');
+  strip.classList.toggle('ready', v === 'UNLOCKED');
+  if (v === 'UNLOCKED') {
+    $('#routeTitle').textContent = '🎁 Your 4,000₩ voucher is ready';
+    $('#routeSub').textContent = 'Tap to show it at Dongmun Market';
+  } else if (v === 'REDEEMED') {
+    $('#routeTitle').textContent = 'Wish Route complete 💚';
+    $('#routeSub').textContent = 'Thanks for supporting local vendors';
+  } else {
+    $('#routeTitle').textContent = `Wish Route ${got}/${ordered.length}`;
+    $('#routeSub').textContent = next ? `Next: ${next.name}` : 'All stamps collected';
+  }
+}
+
+// ------------------------------------------------------------------ quick start (first visit)
+const qsKey = () => `wb-qs-${state.uid}`;
+function storeGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
+function storeSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+
+function renderQuickStart() {
+  const t = state.tourist;
+  const isNew = /^Wish-band Guest/.test(t.name || '') && (!t.dietary || t.dietary === 'None');
+  const show = isNew && !storeGet(qsKey());
+  $('#quickStart').classList.toggle('hidden', !show);
+  if (!show || $('#qsDiet').children.length) return;
+  $('#qsDiet').innerHTML = Object.values(DIET_TAGS).map(l => `<button type="button" data-diet="${l}">${l}</button>`).join('');
+}
+
+async function saveQuickDiet() {
+  const picked = $$('#qsDiet .on').map(b => b.dataset.diet);
+  $('#qsDone').textContent = picked.length ? `Done · ${picked.join(', ')}` : 'No restrictions, show me Jeju';
+  try {
+    const r = await api('/api/register', { uid: state.uid, dietary: picked.join(', ') || 'None' });
+    state.tourist = { ...state.tourist, ...r.tourist };
+    renderProfile();
+    loadRecs();
+  } catch (e) { toast(e.message, 'warn'); }
 }
 
 function renderVoucher() {
@@ -338,9 +386,9 @@ function renderRecs(data) {
         ${i === 0 ? '<div class="badge-top">★ Best match right now</div>' : ''}
         <div class="title">${esc(r.title)} <span class="ko">${esc(r.title_ko || '')}</span></div>
         <div class="note">${esc(r.note || '')}</div>
-        <div class="reasons">${(r.reasons || []).map(x => `<span class="chip ${r.category === 'food' ? 'tan' : r.category === 'place' ? 'sea' : 'leaf'}">${esc(x)}</span>`).join('')}</div>
+        <div class="reasons">${(r.reasons || []).slice(0, i === 0 ? 2 : 1).map(x => `<span class="chip ${r.category === 'food' ? 'tan' : r.category === 'place' ? 'sea' : 'leaf'}">${esc(x)}</span>`).join('')}</div>
       </div>
-      <button class="btn small go" data-go="${esc(r.id)}" aria-label="Directions">Go</button>
+      <button class="btn small go" data-go="${esc(r.id)}" aria-label="Directions">🧭 Go</button>
     </div>`).join('');
 }
 
@@ -354,6 +402,7 @@ async function loadTourist({ celebrate = true } = {}) {
   const voucherJustUnlocked = before && before.voucher?.status === 'LOCKED' && t.voucher?.status === 'UNLOCKED';
 
   renderProfile();
+  if (!before) renderQuickStart();
   if (!before || JSON.stringify(before.stamps) !== JSON.stringify(t.stamps) || before.voucher?.status !== t.voucher?.status
       || (before.checkinHistory || []).length !== (t.checkinHistory || []).length) renderStamps(newStamps);
   renderSos(t.activeSos);
@@ -496,6 +545,19 @@ async function shareLocation() {
   }
 }
 
+// If the phone already allowed location before, use it without asking again.
+async function autoLocate() {
+  try {
+    const perm = await navigator.permissions?.query({ name: 'geolocation' });
+    if (perm?.state !== 'granted') return;
+    const pos = await getPosition();
+    state.origin = pos;
+    api('/api/location', { uid: state.uid, ...pos }).catch(() => {});
+    $('#recWhy').textContent = 'sorted by what is near you';
+    loadRecs();
+  } catch (_) {}
+}
+
 // ------------------------------------------------------------------ profile editing
 function openSheet(id) { $(id).classList.add('open'); }
 function closeSheets() { $$('.sheet-backdrop').forEach(s => s.classList.remove('open')); }
@@ -585,6 +647,28 @@ function bindEvents() {
     window.scrollTo({ top: $('#mapHome').getBoundingClientRect().top + window.scrollY - 70, behavior: 'smooth' });
     entry.map.flyTo(m.getLatLng(), 13, { duration: .6 });
     setTimeout(() => m.openPopup(), 650);
+  });
+
+  // Anything with data-open="stamps" etc. jumps to that tab
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-open]');
+    if (!b) return;
+    switchView(b.dataset.open);
+    if (b.id === 'routeStrip' && state.tourist?.voucher?.status === 'UNLOCKED') {
+      setTimeout(() => $('#voucher').scrollIntoView({ behavior: 'smooth', block: 'center' }), 350);
+    }
+  });
+
+  $('#qsDiet').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    b.classList.toggle('on');
+    saveQuickDiet();
+  });
+  $('#qsDone').addEventListener('click', () => {
+    storeSet(qsKey(), '1');
+    $('#quickStart').classList.add('hidden');
+    toast('All set. Enjoy Jeju 🍊', 'good');
   });
 
   $('#btnLocate').addEventListener('click', async () => {
@@ -678,6 +762,7 @@ function renderDemo() {
     await loadTourist({ celebrate: false });
     await loadRecs();
     startSync();
+    autoLocate();
     const start = location.hash.replace('#', '');
     if (['sos', 'stamps', 'me'].includes(start)) switchView(start);
   } catch (e) {

@@ -41,6 +41,21 @@
 
     <!-- ============ For You ============ -->
     <section class="view on" id="view-home">
+      <!-- First visit: one tap sets diet so food picks are safe -->
+      <div class="card quick-start hidden" id="quickStart">
+        <h3>👋 Any food needs?</h3>
+        <p class="muted small-p">Tap all that apply. Picks update right away.</p>
+        <div class="pick-row" id="qsDiet"></div>
+        <button class="btn block" id="qsDone" style="margin-top:12px">No restrictions, show me Jeju</button>
+      </div>
+
+      <!-- Stamp progress, always visible: tap to open the Stamps tab -->
+      <button class="route-strip" id="routeStrip" data-open="stamps">
+        <span class="beads" id="routeBeads"></span>
+        <span class="txt"><b id="routeTitle">Wish Route</b><small id="routeSub">Collect 3 stamps for a market treat</small></span>
+        <span class="arrow">›</span>
+      </button>
+
       <div class="section-title">✨ Explore Jeju <span class="ko">추천 지도</span></div>
       <div class="map-card">
         <div class="map" id="mapHome"></div>
@@ -52,7 +67,7 @@
           <button data-cat="all" class="on">🌈 All</button>
           <button data-cat="place">🗿 Places</button>
           <button data-cat="food">🍊 Food</button>
-          <button data-cat="activity">🌊 Activities</button>
+          <button data-cat="activity">🌊 Do</button>
         </div>
       </div>
 
@@ -76,7 +91,7 @@
       <div class="card sos-card" id="sosCard">
         <div id="sosIdle">
           <h3>Need help right now?</h3>
-          <p class="muted small-p">Hold the button for 2 seconds. The Jeju help desk gets your location and wish-band profile.</p>
+          <p class="muted small-p">Hold the red button for 2 seconds. The Jeju help desk gets your location and profile. To talk now, call a hotline below.</p>
           <button class="hold-btn" id="holdSos"><div class="fill" id="holdFill"></div><span>🚨 Hold to send SOS</span></button>
           <input class="input" id="sosNote" maxlength="120" placeholder="What's wrong? (optional) e.g. twisted ankle" style="margin-top:12px">
         </div>
@@ -94,7 +109,7 @@
         </div>
       </div>
 
-      <div class="section-title">☎️ Hotlines</div>
+      <div class="section-title">☎️ Call now <span class="ko">긴급 전화</span></div>
       <div class="hotlines" id="hotlines"></div>
 
       <div class="section-title">🗺️ Helping Map <span class="ko">도움 지도</span></div>

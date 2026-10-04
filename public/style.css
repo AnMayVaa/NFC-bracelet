@@ -398,3 +398,30 @@ tr.flash td { animation: flash 1.2s; }
 .modal.open { display: flex; }
 .modal .box { background: var(--paper); border-radius: var(--radius); padding: 22px; max-width: 360px; width: 100%; text-align: center; box-shadow: var(--shadow); }
 .modal img { width: 220px; height: 220px; margin: 12px auto; display: block; border-radius: 12px; background: #fff; padding: 8px; }
+
+/* ---------------- v3: fewer steps ---------------- */
+.tabs-cats { display: grid; grid-template-columns: repeat(4, 1fr); overflow: visible; }
+.tabs-cats button { padding-left: 4px; padding-right: 4px; white-space: nowrap; text-align: center; }
+.quick-start { border: 2px solid var(--tan); margin-bottom: 14px; animation: pop .35s ease; }
+.quick-start h3 { margin-bottom: 2px; }
+.quick-start .pick-row { margin-top: 10px; }
+.route-strip {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+  background: #fff; border: 2px solid var(--line, #EFE6D6); border-radius: 18px;
+  padding: 10px 14px; margin-bottom: 14px; font: inherit; color: inherit; cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0,0,0,.05);
+}
+.route-strip:active { transform: translateY(2px); }
+.route-strip .beads { display: flex; gap: 4px; }
+.route-strip .beads i {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-style: normal;
+  font-size: .8rem; background: #F1ECE3; filter: grayscale(1); opacity: .6;
+}
+.route-strip .beads i.on { filter: none; opacity: 1; background: var(--tan-s); box-shadow: 0 0 0 2px var(--tan) inset; }
+.route-strip .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.route-strip .txt small { color: var(--muted); font-weight: 700; font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.route-strip .arrow { font-size: 1.6rem; color: var(--muted); font-weight: 800; }
+.route-strip.ready { background: linear-gradient(135deg, var(--tan), #F6A55B); border-color: transparent; color: #fff; }
+.route-strip.ready .txt small, .route-strip.ready .arrow { color: #fff; }
+.rec .go { min-width: 56px; }
+@keyframes pop { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }

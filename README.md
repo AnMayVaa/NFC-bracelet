@@ -4,7 +4,7 @@ A smart basalt-bead wristband for Jeju visitors. Tap the band on a phone to open
 
 | Part | What it does |
 | :--- | :--- |
-| 📱 Tourist app (`/<UID>`) | **For You**: map + AI picks (diet-safe, UV-aware, boosts local and quiet spots) · **SOS**: hold-to-send SOS, hotlines, Helping Map, help near you · **Stamps**: route map, passport, 4,000 KRW Dongmun Market voucher · **Me**: profile and demo tools |
+| 📱 Tourist app (`/<UID>`) | **For You**: one-tap diet setup, stamp progress strip, map + AI picks (diet-safe, UV-aware, boosts local and quiet spots) · **SOS**: hold-to-send SOS, hotlines, Helping Map, help near you · **Stamps**: route map, passport, 4,000 KRW Dongmun Market voucher · **Me**: profile and demo tools |
 | 🏢 Admin desk (`/admin`) | Issue and register bands, write NFC tags, SOS queue (acknowledge, dispatch, resolve), station health, live log, evaluation metrics |
 | 📟 `firmware/admin` | ESP32 + PN532 desk reader: reads the tag, writes the tourist link, reports to the admin desk |
 | 🍊 `firmware/food` · 🗿 `firmware/place` · 🌊 `firmware/activity` | ESP32 stations (MFRC522 by default, PN532 optional): each tap gives a stamp of that kind |
@@ -35,6 +35,20 @@ The tourist app has **Demo tools** under the *Me* tab to simulate taps without h
 | `ADMIN_PIN` | empty | If set, the admin desk asks for it |
 | `DEMO_MODE` | `true` | `false` hides demo tools, simulated taps, wipe and restore |
 | `UV_OVERRIDE` | empty | Force a UV index (for demos); otherwise live UV from Open-Meteo |
+| `SUPABASE_URL` | empty | Your Supabase project URL. With the key below, data lives in Supabase instead of `database.json` |
+| `SUPABASE_SERVICE_ROLE_KEY` | empty | Supabase secret key (server only, never in the browser or in git) |
+
+### Database: Supabase (recommended for Vercel)
+
+Without the two Supabase variables the app keeps everything in `database.json` (on Vercel that is `/tmp`, which resets). With them, every wish-band, stamp and SOS alert is saved in Supabase Postgres, shared by all Vercel instances, and you can check it in the Supabase **Table Editor**.
+
+1. Create a free project at [supabase.com](https://supabase.com) (region: Seoul or Singapore).
+2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql), press **Run**. This creates the `tourists` and `sos_alerts` tables plus read-only views `checkins`, `location_log` and `recommendation_events`.
+3. **Project Settings → API**: copy the **Project URL** and the **service_role** (secret) key.
+4. **Vercel → smart-nfc-bracelet → Settings → Environment Variables**: add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then redeploy. For local runs put them in your shell before `npm start`.
+5. Open `/api/health`: it shows `"storage": "supabase"` when it is connected. The admin desk "Load demo tags" button fills the table with demo data.
+
+Row Level Security is on with no policies, so the public anon key can read nothing; only the server's secret key can. Never commit the secret key (the repo is public).
 
 ---
 
@@ -44,7 +58,7 @@ The tourist app has **Demo tools** under the *Me* tab to simulate taps without h
 lib/
   core.js            business rules (pure functions, unit tested)
   app.js             every API route, shared by both servers
-  store.js           JSON store with schema version + auto-migration
+  store.js           Supabase or JSON-file store, schema version + auto-migration
   uv.js              live UV index for Jeju (Open-Meteo, cached 30 min)
   data/stations.js   stations, stamp kinds, reward rule, help points, hotlines
   data/catalog.js    places / food / activities the AI picks from
@@ -52,6 +66,7 @@ server.js            local server: shared app + static files + WebSocket
 api/index.js         Vercel serverless entry (same app)
 public/              tourist app (index.html, app.js), admin desk (admin.html, admin.js), shared style.css
 firmware/            admin, food, place, activity sketches (+ tools/ RC522 diagnostic)
+supabase/schema.sql  tables + views to paste into the Supabase SQL Editor
 test/                node --test unit tests
 ```
 
@@ -60,7 +75,7 @@ test/                node --test unit tests
 - **New station** (for example a second food stall): add an entry to `lib/data/stations.js` with a new `id` and `kind`, copy `firmware/food` to a new folder, and change `STATION_ID`. The app, admin desk and voucher rule pick it up automatically.
 - **New stamp kind**: add it to `STATION_KINDS`. The voucher needs one stamp of every kind listed in `REWARD.requiredKinds`.
 - **New recommendation**: add an item to `lib/data/catalog.js`. Only add dietary tags that are verified; untagged food is hidden from anyone with a restriction.
-- **Real database**: replace `lib/store.js` (same `load/save/replace` interface). Vercel `/tmp` storage resets when an instance is recycled.
+- **Database**: set the Supabase variables above. Another database can replace `lib/store.js` as long as it keeps the `refresh/load/save/replace` interface.
 
 ### How the AI picks work
 
