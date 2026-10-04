@@ -4,12 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#7CC3E0">
+  <meta name="description" content="Jeju wish-band: AI trip picks, stamp route and SOS on Jeju island">
   <title>Jeju wish-band</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+KR:wght@500;700&family=Noto+Sans+Thai:wght@500;700&family=Noto+Sans+SC:wght@500;700&family=Noto+Sans+JP:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css">
+  <script src="/i18n.js"></script>
 </head>
 <body>
 <div class="app">
@@ -17,15 +22,19 @@
   <!-- ============ Hero ============ -->
   <header class="hero">
     <div class="top">
-      <div class="brand"><div class="logo">🍊</div> Jeju wish-band</div>
-      <div class="live" id="live"><span class="dot"></span><span id="liveText">Connecting…</span></div>
+      <div class="brand"><img class="logo-img" src="/logo.svg" alt="" width="34" height="34"> <span class="brand-txt">Jeju wish-band</span></div>
+      <div class="top-acts">
+        <button class="pill-btn" id="btnLang" title="Language">🌐 <span id="langShort">EN</span></button>
+        <button class="pill-btn" id="btnTheme" title="Dark mode">🌙</button>
+        <div class="live" id="live"><span class="dot"></span><span id="liveText" data-i18n="live.connecting">Connecting…</span></div>
+      </div>
     </div>
     <div class="hello">
-      <div class="small" id="greetSmall">안녕하세요! Welcome to Jeju</div>
-      <h1 id="greetName">Hello, traveler</h1>
+      <div class="small" id="greetSmall" data-i18n="greet.small">Welcome to Jeju</div>
+      <h1 id="greetName">Hello, traveler!</h1>
       <div class="hello-row">
         <span class="uid mono" id="uidTag">…</span>
-        <span class="uv-pill" id="uvPill" title="UV index now"><span class="bead mini" id="bead"></span><b id="uvNum">–</b> UV</span>
+        <span class="uv-pill" id="wxPill"><span id="wxPillEmoji">🌤️</span><b id="wxPillTemp">–</b><span id="wxPillUv"></span></span>
       </div>
     </div>
     <svg class="scene" viewBox="0 0 480 120" preserveAspectRatio="none" aria-hidden="true">
@@ -33,7 +42,7 @@
       <path d="M0 94 L120 78 C160 56 200 44 240 44 C280 44 318 56 360 78 L480 90 L480 120 L0 120 Z" fill="#6BA77A"/>
       <path d="M212 52 C226 44 254 44 268 52 L258 56 C248 51 232 51 222 56 Z" fill="#fff" opacity=".85"/>
       <path d="M0 100 C60 90 110 108 170 100 C230 92 280 110 340 100 C400 90 440 104 480 98 L480 120 L0 120 Z" fill="#2E86AB" opacity=".85"/>
-      <path d="M0 108 C50 102 100 116 160 110 C220 104 270 118 330 110 C390 102 440 114 480 108 L480 120 L0 120 Z" fill="#FBF5E9"/>
+      <path class="scene-ground" d="M0 108 C50 102 100 116 160 110 C220 104 270 118 330 110 C390 102 440 114 480 108 L480 120 L0 120 Z"/>
     </svg>
   </header>
 
@@ -41,166 +50,181 @@
 
     <!-- ============ For You ============ -->
     <section class="view on" id="view-home">
-      <!-- First visit: one tap sets diet so food picks are safe -->
       <div class="card quick-start hidden" id="quickStart">
-        <h3>👋 Any food needs?</h3>
-        <p class="muted small-p">Tap all that apply. Picks update right away.</p>
+        <h3 data-i18n="qs.title">👋 Any food needs?</h3>
+        <p class="muted small-p" data-i18n="qs.sub">Tap all that apply. Picks update right away.</p>
         <div class="pick-row" id="qsDiet"></div>
-        <button class="btn block" id="qsDone" style="margin-top:12px">No restrictions, show me Jeju</button>
+        <button class="btn block" id="qsDone" style="margin-top:12px" data-i18n="qs.none">No restrictions, show me Jeju</button>
       </div>
 
-      <!-- Stamp progress, always visible: tap to open the Stamps tab -->
       <button class="route-strip" id="routeStrip" data-open="stamps">
         <span class="beads" id="routeBeads"></span>
-        <span class="txt"><b id="routeTitle">Wish Route</b><small id="routeSub">Collect 3 stamps for a market treat</small></span>
+        <span class="txt"><b id="routeTitle">Wish Route</b><small id="routeSub"></small></span>
         <span class="arrow">›</span>
       </button>
 
-      <div class="section-title">✨ Explore Jeju <span class="ko">추천 지도</span></div>
+      <!-- Live weather that drives the AI picks -->
+      <div class="wx-card" id="wxCard">
+        <div class="wx-main">
+          <span class="wx-emoji" id="wxEmoji">🌤️</span>
+          <div class="wx-now">
+            <div class="wx-temp"><b id="wxTemp">–</b><span id="wxLabel" class="muted"></span></div>
+            <div class="wx-stats" id="wxStats"></div>
+          </div>
+        </div>
+        <div class="wx-advice"><span id="wxAdvice" data-i18n="advice.unknown"></span><small class="muted" data-i18n="wx.ai">AI picks adjust to this</small></div>
+      </div>
+
+      <div class="section-title"><span data-i18n="home.explore">✨ Explore Jeju</span> <span class="ko">추천 지도</span></div>
       <div class="map-card">
         <div class="map" id="mapHome"></div>
-        <button class="map-fab" id="btnLocate" title="Use my location">📍</button>
+        <button class="map-fab" id="btnLocate" title="My location">📍</button>
       </div>
 
       <div class="cats-sticky">
         <div class="tabs-cats" id="cats">
-          <button data-cat="all" class="on">🌈 All</button>
-          <button data-cat="place">🗿 Places</button>
-          <button data-cat="food">🍊 Food</button>
-          <button data-cat="activity">🌊 Do</button>
+          <button data-cat="all" class="on" data-i18n="cat.all">🌈 All</button>
+          <button data-cat="place" data-i18n="cat.place">🗿 Places</button>
+          <button data-cat="food" data-i18n="cat.food">🍊 Food</button>
+          <button data-cat="activity" data-i18n="cat.activity">🌊 Do</button>
         </div>
       </div>
 
-      <div class="advice-strip" id="adviceStrip">
-        <span class="e">☀️</span><span id="uvAdvice">Checking Jeju sunshine…</span>
-      </div>
-
       <div class="list-head">
-        <b>Picked for you</b>
-        <span class="muted" id="recWhy">diet · stamps · today's UV</span>
+        <b data-i18n="picks.title">Picked for you</b>
+        <span class="muted" id="recWhy" data-i18n="picks.why">diet · stamps · live weather</span>
       </div>
       <div class="rec-list" id="recList">
         <div class="rec skeleton"></div><div class="rec skeleton"></div><div class="rec skeleton"></div>
       </div>
     </section>
 
-    <!-- ============ SOS ============ -->
-    <section class="view" id="view-sos">
-      <div class="section-title sos-title">🆘 Safe &amp; Sound <span class="ko">긴급 도움</span></div>
-
-      <div class="card sos-card" id="sosCard">
-        <div id="sosIdle">
-          <h3>Need help right now?</h3>
-          <p class="muted small-p">Hold the red button for 2 seconds. The Jeju help desk gets your location and profile. To talk now, call a hotline below.</p>
-          <button class="hold-btn" id="holdSos"><div class="fill" id="holdFill"></div><span>🚨 Hold to send SOS</span></button>
-          <input class="input" id="sosNote" maxlength="120" placeholder="What's wrong? (optional) e.g. twisted ankle" style="margin-top:12px">
-        </div>
-        <div id="sosActive" class="hidden">
-          <h3 style="color:var(--sos)">Help is on the way</h3>
-          <p class="muted small-p">Stay where you are if it is safe. Keep your phone on.</p>
-          <div class="sos-steps">
-            <div class="sos-step" data-s="PENDING"><i>📨</i>Sent</div>
-            <div class="sos-step" data-s="ACKNOWLEDGED"><i>👀</i>Seen</div>
-            <div class="sos-step" data-s="DISPATCHED"><i>🚑</i>Coming</div>
-            <div class="sos-step" data-s="RESOLVED"><i>💚</i>Safe</div>
-          </div>
-          <div class="muted" style="font-size:.85rem;font-weight:700;text-align:center" id="sosDetail"></div>
-          <button class="btn ghost block small" style="margin-top:12px" id="btnSosCancel">I'm OK now, cancel</button>
-        </div>
-      </div>
-
-      <div class="section-title">☎️ Call now <span class="ko">긴급 전화</span></div>
-      <div class="hotlines" id="hotlines"></div>
-
-      <div class="section-title">🗺️ Helping Map <span class="ko">도움 지도</span></div>
-      <div class="map-card">
-        <div class="map" id="mapSos"></div>
-        <button class="map-fab" id="btnShareLoc" title="Share my location">📡</button>
-      </div>
-      <div class="loc-line" id="lastLoc">No location yet</div>
-
-      <div class="section-title">🏥 Help near you</div>
-      <div class="help-list" id="helpList"></div>
-    </section>
-
     <!-- ============ Stamps ============ -->
     <section class="view" id="view-stamps">
-      <div class="section-title">🗿 Wish Route <span class="ko">스탬프 지도</span></div>
+      <div class="section-title"><span data-i18n="stamps.title">🗿 Wish Route</span> <span class="ko">스탬프 지도</span></div>
       <div class="map-card">
         <div class="map" id="mapStamps"></div>
       </div>
+      <div class="route-note muted" id="routeNote"></div>
       <div class="next-stop hidden" id="nextStop"></div>
 
       <div class="card passport" style="margin-top:14px">
-        <h3>Wish Passport</h3>
-        <p class="muted small-p">One food, one place and one activity stamp unlock a local market treat.</p>
+        <h3 data-i18n="passport.title">Wish Passport</h3>
+        <p class="muted small-p" data-i18n="passport.sub">One food, one place and one activity stamp unlock a local market treat.</p>
         <div class="stamps" id="stamps"></div>
         <div class="progress"><div id="progressBar" style="width:0%"></div></div>
         <div class="muted" style="font-size:.78rem;font-weight:800;margin-top:6px;text-align:right" id="progressText">0 / 3</div>
       </div>
 
-      <div class="section-title">🎁 Bonus reward</div>
+      <div class="section-title" data-i18n="voucher.bonus">🎁 Bonus reward</div>
       <div class="voucher" id="voucher">
-        <div class="chip" id="voucherBadge" style="background:rgba(255,255,255,.4)">Locked</div>
+        <div class="chip" id="voucherBadge" style="background:rgba(255,255,255,.4)">🔒</div>
         <div class="amt" style="margin-top:10px">4,000 <small>KRW</small></div>
-        <div style="font-weight:800;font-size:.9rem" id="voucherWhere">Dongmun Traditional Market voucher</div>
+        <div style="font-weight:800;font-size:.9rem" id="voucherWhere" data-i18n="voucher.where">Dongmun Traditional Market voucher</div>
         <img class="qr hidden" id="voucherQr" alt="Voucher QR code">
         <div class="code mono" id="voucherCode">•••• •••• ••••</div>
-        <div style="font-size:.8rem;font-weight:600" id="voucherDesc">Collect all three stamps to unlock.</div>
-        <button class="btn block" style="margin-top:12px;background:#fff;color:var(--tan-d);box-shadow:0 4px 0 rgba(0,0,0,.12)" id="btnRedeem" disabled>Show to merchant</button>
+        <div style="font-size:.8rem;font-weight:600" id="voucherDesc"></div>
+        <button class="btn block" style="margin-top:12px;background:#fff;color:var(--tan-d);box-shadow:0 4px 0 rgba(0,0,0,.12)" id="btnRedeem" disabled></button>
       </div>
 
-      <div class="section-title">🧭 Your trail</div>
+      <div class="section-title" data-i18n="trail.title">🧭 Your trail</div>
       <div class="card"><ul class="timeline" id="timeline"></ul></div>
+    </section>
+
+    <!-- ============ SOS ============ -->
+    <section class="view" id="view-sos">
+      <div class="section-title sos-title"><span data-i18n="sos.title">🆘 Safe &amp; Sound</span> <span class="ko">긴급 도움</span></div>
+
+      <div class="card sos-card" id="sosCard">
+        <div id="sosIdle">
+          <h3 data-i18n="sos.need">Need help right now?</h3>
+          <p class="muted small-p" data-i18n="sos.desc"></p>
+          <button class="hold-btn" id="holdSos"><div class="fill" id="holdFill"></div><span data-i18n="sos.hold">🚨 Hold to send SOS</span></button>
+          <input class="input" id="sosNote" maxlength="120" data-i18n-ph="sos.notePh" style="margin-top:12px">
+        </div>
+        <div id="sosActive" class="hidden">
+          <h3 style="color:var(--sos)" data-i18n="sos.onWay">Help is on the way</h3>
+          <p class="muted small-p" data-i18n="sos.stay"></p>
+          <div class="sos-steps">
+            <div class="sos-step" data-s="PENDING"><i>📨</i><span data-i18n="sos.sSent">Sent</span></div>
+            <div class="sos-step" data-s="ACKNOWLEDGED"><i>👀</i><span data-i18n="sos.sSeen">Seen</span></div>
+            <div class="sos-step" data-s="DISPATCHED"><i>🚑</i><span data-i18n="sos.sComing">Coming</span></div>
+            <div class="sos-step" data-s="RESOLVED"><i>💚</i><span data-i18n="sos.sSafe">Safe</span></div>
+          </div>
+          <div class="muted" style="font-size:.85rem;font-weight:700;text-align:center" id="sosDetail"></div>
+          <button class="btn ghost block small" style="margin-top:12px" id="btnSosCancel" data-i18n="sos.cancel">I'm OK now, cancel</button>
+        </div>
+      </div>
+
+      <div class="section-title"><span data-i18n="sos.callNow">☎️ Call now</span> <span class="ko">긴급 전화</span></div>
+      <div class="hotlines" id="hotlines"></div>
+
+      <div class="section-title" data-i18n="sos.embassy">🏛️ Help from your country</div>
+      <div class="card embassy" id="embassyCard"></div>
+
+      <div class="section-title"><span data-i18n="sos.helpMap">🗺️ Helping Map</span> <span class="ko">도움 지도</span></div>
+      <div class="map-card">
+        <div class="map" id="mapSos"></div>
+        <button class="map-fab" id="btnShareLoc" title="Share my location">📡</button>
+      </div>
+      <div class="loc-line" id="lastLoc"></div>
+
+      <div class="section-title" data-i18n="sos.helpNear">🏥 Help near you</div>
+      <div class="help-list" id="helpList"></div>
     </section>
 
     <!-- ============ Me ============ -->
     <section class="view" id="view-me">
-      <div class="section-title">🙂 My wish-band <span class="ko">내 정보</span></div>
-      <div class="card">
-        <div class="profile-top">
-          <div class="avatar">🧳</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:900;font-size:1.2rem" id="meName">…</div>
-            <div class="muted" style="font-weight:700;font-size:.85rem" id="meFrom">…</div>
+      <div class="profile-hero card">
+        <div class="flag-avatar" id="meFlag">🧳</div>
+        <div class="who">
+          <div class="nm" id="meName">…</div>
+          <div class="muted sub" id="meFrom">…</div>
+          <span class="uid mono" id="meUid"></span>
+        </div>
+        <button class="btn ghost small" id="btnEdit" data-i18n="me.edit">✏️ Edit</button>
+      </div>
+
+      <div class="me-grid">
+        <div class="card info-tile">
+          <div class="lbl" data-i18n="me.diet">Diet</div>
+          <div class="chips" id="meDiet"></div>
+        </div>
+        <div class="card info-tile">
+          <div class="lbl" data-i18n="me.nationality">Nationality</div>
+          <div class="val" id="meCountry">–</div>
+        </div>
+      </div>
+
+      <div class="card contact-card" id="meContact"></div>
+
+      <div class="card settings">
+        <h3 data-i18n="me.settings">⚙️ Settings</h3>
+        <div class="set-row">
+          <span data-i18n="me.language">Language</span>
+          <div class="seg" id="langSeg"></div>
+        </div>
+        <div class="set-row">
+          <span data-i18n="me.theme">Theme</span>
+          <div class="seg" id="themeSeg">
+            <button data-theme-btn="light" data-i18n="me.light">☀️ Light</button>
+            <button data-theme-btn="dark" data-i18n="me.dark">🌙 Dark</button>
           </div>
-          <button class="btn ghost small" id="btnEdit">✏️ Edit</button>
         </div>
-        <dl class="kv">
-          <dt>Diet</dt><dd id="meDiet">–</dd>
-          <dt>SOS contact</dt><dd id="meSos">–</dd>
-          <dt>Language</dt><dd id="meLang">–</dd>
-          <dt>Deposit</dt><dd id="meDeposit">–</dd>
-        </dl>
-      </div>
-
-      <div class="card bead-card" style="margin-top:14px">
-        <div class="bead big" id="beadBig"></div>
-        <div>
-          <h3>Your UV bead</h3>
-          <p class="muted small-p">The basalt-band bead turns tangerine in direct sun. That's your reminder for sunscreen.</p>
+        <div class="set-row small">
+          <span data-i18n="me.deposit">Wish-band deposit</span>
+          <span class="chip leaf" id="meDeposit" data-i18n="me.depositHeld">10,000₩ held · refunded on return</span>
         </div>
       </div>
-
-      <details class="demo hidden" id="demoTools">
-        <summary>⚡ Demo tools (no hardware needed)</summary>
-        <div class="row" id="demoTaps"></div>
-        <div class="row">
-          <button class="btn ghost small" id="btnUv">☀️ Toggle sun on bead</button>
-          <button class="btn ghost small" id="btnSwitch">🔄 Switch tag</button>
-          <button class="btn ghost small" id="btnReset">↺ Reset my stamps</button>
-        </div>
-        <div class="row" id="demoTags"></div>
-      </details>
     </section>
   </main>
 
   <!-- Bottom navigation -->
   <nav class="nav" id="nav">
-    <button data-view="home" class="on"><span class="i">✨</span>For You</button>
-    <button data-view="stamps"><span class="i">🗿</span>Stamps</button>
-    <button data-view="sos" class="nav-sos"><span class="i">🆘</span>SOS<span class="dotbadge hidden" id="sosBadge"></span></button>
-    <button data-view="me"><span class="i">🙂</span>Me</button>
+    <button data-view="home" class="on"><span class="i">✨</span><span data-i18n="nav.home">For You</span></button>
+    <button data-view="stamps"><span class="i">🗿</span><span data-i18n="nav.stamps">Stamps</span></button>
+    <button data-view="sos" class="nav-sos"><span class="i">🆘</span><span data-i18n="nav.sos">SOS</span><span class="dotbadge hidden" id="sosBadge"></span></button>
+    <button data-view="me"><span class="i">🙂</span><span data-i18n="nav.me">Me</span></button>
   </nav>
 </div>
 
@@ -208,22 +232,36 @@
 <div class="sheet-backdrop" id="sheetEdit">
   <div class="sheet">
     <div class="grab"></div>
-    <h2>✏️ Edit profile</h2>
-    <p class="muted" style="font-size:.85rem;margin-bottom:14px">Your diet keeps food picks safe. Your SOS contact helps rescuers.</p>
-    <div class="field"><label>Name</label><input id="inName" maxlength="60" placeholder="Min-woo Kim"></div>
-    <div class="field"><label>Home country</label><input id="inCountry" maxlength="60" placeholder="Thailand"></div>
-    <div class="field"><label>Language</label>
-      <select id="inLang">
-        <option>English</option><option value="Korean">한국어 Korean</option><option value="Chinese">中文 Chinese</option>
-        <option value="Japanese">日本語 Japanese</option><option value="Thai">ไทย Thai</option>
-      </select>
+    <h2 data-i18n="edit.title">✏️ Edit profile</h2>
+    <p class="muted" style="font-size:.85rem;margin-bottom:14px" data-i18n="edit.sub"></p>
+    <div class="field"><label data-i18n="edit.name">Name</label><input id="inName" maxlength="60" data-i18n-ph="edit.namePh" autocomplete="name"></div>
+    <div class="field"><label data-i18n="edit.country">Nationality</label><select id="inCountry"></select></div>
+    <div class="field"><label data-i18n="edit.lang">Language you speak</label><select id="inLang"></select></div>
+    <div class="field"><label data-i18n="edit.diet">Diet</label><div class="pick-row" id="dietPicks"></div></div>
+    <div class="field"><label data-i18n="edit.dietOther">Other allergy</label><input id="inDietOther" maxlength="60" data-i18n-ph="edit.dietOtherPh"></div>
+
+    <div class="sheet-sub" data-i18n="edit.contact">Emergency contact</div>
+    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:10px">
+      <div class="field"><label data-i18n="edit.contactName">Contact name</label><input id="inSosName" maxlength="60" data-i18n-ph="edit.contactNamePh"></div>
+      <div class="field"><label data-i18n="edit.relation">Relationship</label>
+        <select id="inSosRel">
+          <option value="Family" data-i18n="rel.family">Family</option>
+          <option value="Partner" data-i18n="rel.partner">Partner</option>
+          <option value="Friend" data-i18n="rel.friend">Friend</option>
+          <option value="Travel buddy" data-i18n="rel.buddy">Travel buddy</option>
+          <option value="Other" data-i18n="rel.other">Other</option>
+        </select>
+      </div>
     </div>
-    <div class="field"><label>Diet (tap all that apply)</label><div class="pick-row" id="dietPicks"></div></div>
-    <div class="field"><label>Other allergy (optional)</label><input id="inDietOther" maxlength="60" placeholder="e.g. peanut allergy"></div>
-    <div class="field"><label>Emergency contact</label><input id="inSos" type="tel" maxlength="30" placeholder="+66 81 234 5678"></div>
+    <div class="field"><label data-i18n="edit.phone">Phone number</label>
+      <div class="phone-row">
+        <select id="inDial"></select>
+        <input id="inSos" type="tel" inputmode="tel" maxlength="20" placeholder="812 345 678" autocomplete="tel-national">
+      </div>
+    </div>
     <div style="display:flex;gap:10px;margin-top:6px">
-      <button class="btn ghost" style="flex:1" data-close>Cancel</button>
-      <button class="btn" style="flex:2" id="btnSave">Save</button>
+      <button class="btn ghost" style="flex:1" data-close data-i18n="edit.cancel">Cancel</button>
+      <button class="btn" style="flex:2" id="btnSave" data-i18n="edit.save">Save</button>
     </div>
   </div>
 </div>
@@ -231,13 +269,21 @@
 <div class="sheet-backdrop" id="sheetRedeem">
   <div class="sheet">
     <div class="grab"></div>
-    <h2>🎁 Merchant confirmation</h2>
-    <p class="muted" style="font-size:.88rem;margin-bottom:14px">Hand the phone to the Dongmun Market vendor. They enter their shop PIN to use this voucher.</p>
-    <div class="field"><label>Merchant PIN</label><input id="inPin" type="password" inputmode="numeric" maxlength="8" placeholder="••••"></div>
+    <h2 data-i18n="redeem.title">🎁 Merchant confirmation</h2>
+    <p class="muted" style="font-size:.88rem;margin-bottom:14px" data-i18n="redeem.sub"></p>
+    <div class="field"><label data-i18n="redeem.pin">Merchant PIN</label><input id="inPin" type="password" inputmode="numeric" maxlength="8" placeholder="••••"></div>
     <div style="display:flex;gap:10px">
-      <button class="btn ghost" style="flex:1" data-close>Cancel</button>
-      <button class="btn" style="flex:2" id="btnConfirmRedeem">Use voucher</button>
+      <button class="btn ghost" style="flex:1" data-close data-i18n="edit.cancel">Cancel</button>
+      <button class="btn" style="flex:2" id="btnConfirmRedeem" data-i18n="redeem.use">Use voucher</button>
     </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="sheetLang">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2>🌐 Language · 언어 · 语言 · 言語 · ภาษา</h2>
+    <div class="lang-list" id="langList"></div>
   </div>
 </div>
 

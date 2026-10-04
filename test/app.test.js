@@ -72,3 +72,25 @@ test('demo control: seed story, play a journey, clear', async () => {
     s.close();
   }
 });
+
+test('register: any nationality and an international emergency phone', async () => {
+  const s = await start();
+  const base = `http://127.0.0.1:${s.address().port}`;
+  const post = (p, body) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  try {
+    let r = await post('/api/register', { uid: 'INTL1', name: 'Nguyễn Văn An', countryCode: 'vn', emergencyContact: '+84 912345678', emergencyName: 'Mẹ', emergencyRelation: 'Family' });
+    const j = await r.json();
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(j.tourist.countryCode, 'VN');
+    assert.strictEqual(j.tourist.country, 'Vietnam');
+    assert.strictEqual(j.tourist.emergencyName, 'Mẹ');
+    r = await post('/api/register', { uid: 'INTL1', emergencyContact: '+1 23' });
+    assert.strictEqual(r.status, 400);
+    r = await post('/api/register', { uid: 'INTL1', countryCode: 'ZZ' });
+    assert.strictEqual(r.status, 400);
+    const cfg = await (await fetch(`${base}/api/config`)).json();
+    assert.strictEqual(cfg.dialCodes.TH, '66');
+  } finally {
+    s.close();
+  }
+});

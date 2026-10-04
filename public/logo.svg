@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Jeju wish-band">
+  <title>Jeju wish-band</title>
+  <defs>
+    <clipPath id="c"><circle cx="32" cy="32" r="30"/></clipPath>
+    <radialGradient id="bead" cx="38%" cy="32%" r="70%">
+      <stop offset="0" stop-color="#FFC58A"/><stop offset=".55" stop-color="#F28C38"/><stop offset="1" stop-color="#C9651A"/>
+    </radialGradient>
+  </defs>
+  <g clip-path="url(#c)">
+    <rect width="64" height="64" fill="#FBF5E9"/>
+    <path d="M0 44 C10 40 18 47 28 44 C38 41 46 48 56 44 C60 43 62 43 64 44 V64 H0 Z" fill="#2E86AB"/>
+    <path d="M0 50 C10 47 18 53 28 50 C38 47 46 54 56 50 C60 49 62 49 64 50 V64 H0 Z" fill="#1F5F7C" opacity=".55"/>
+  </g>
+  <!-- basalt bead band -->
+  <g fill="#3B3F45">
+    <circle cx="32" cy="12.5" r="3.6"/><circle cx="43.6" cy="16.4" r="3.6"/><circle cx="50.5" cy="26.5" r="3.6"/>
+    <circle cx="50.5" cy="38" r="3.6"/><circle cx="13.5" cy="38" r="3.6"/><circle cx="13.5" cy="26.5" r="3.6"/><circle cx="20.4" cy="16.4" r="3.6"/>
+  </g>
+  <g fill="#fff" opacity=".35">
+    <circle cx="31" cy="11.3" r="1"/><circle cx="42.6" cy="15.2" r="1"/><circle cx="49.5" cy="25.3" r="1"/>
+    <circle cx="12.5" cy="25.3" r="1"/><circle cx="19.4" cy="15.2" r="1"/>
+  </g>
+  <!-- hallabong tangerine bead -->
+  <circle cx="32" cy="41" r="10" fill="url(#bead)"/>
+  <circle cx="28.5" cy="37.5" r="2.4" fill="#fff" opacity=".55"/>
+  <path d="M32 31.5 C33 28.5 36.5 27 39.5 28 C38.5 31 35.5 32.5 32 31.5 Z" fill="#5E9A62"/>
+  <rect x="31.2" y="29.5" width="1.6" height="3" rx=".8" fill="#3B3F45"/>
+</svg>

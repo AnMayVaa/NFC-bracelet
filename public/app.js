@@ -1,5 +1,5 @@
 // Jeju wish-band · tourist app
-// Works from a tag URL (/04DBCE42CA2A81) or ?uid=BEAD_001
+// Works from a tag URL (/04DBCE42CA2A81) or ?uid=BEAD_001. Text lives in i18n.js.
 
 // ------------------------------------------------------------------ helpers
 const $ = sel => document.querySelector(sel);
@@ -42,13 +42,13 @@ function chime(type) {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const notes = type === 'voucher' ? [523.25, 659.25, 783.99, 1046.5] : [587.33, 880];
     notes.forEach((f, i) => {
-      const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + i * .11;
+      const o = ctx.createOscillator(), g = ctx.createGain(), at = ctx.currentTime + i * .11;
       o.type = type === 'voucher' ? 'triangle' : 'sine';
-      o.frequency.setValueAtTime(f, t);
-      g.gain.setValueAtTime(.22, t);
-      g.gain.exponentialRampToValueAtTime(.001, t + .35);
+      o.frequency.setValueAtTime(f, at);
+      g.gain.setValueAtTime(.22, at);
+      g.gain.exponentialRampToValueAtTime(.001, at + .35);
       o.connect(g).connect(ctx.destination);
-      o.start(t); o.stop(t + .35);
+      o.start(at); o.stop(at + .35);
     });
   } catch (_) {}
   if (navigator.vibrate) navigator.vibrate(type === 'voucher' ? [80, 40, 80, 40, 160] : [90, 50, 90]);
@@ -57,10 +57,10 @@ function chime(type) {
 function timeAgo(iso) {
   if (!iso) return '';
   const s = Math.round((Date.now() - Date.parse(iso)) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
-  return new Date(iso).toLocaleDateString();
+  if (s < 60) return t('ago.now');
+  if (s < 3600) return t('ago.min', { n: Math.floor(s / 60) });
+  if (s < 86400) return t('ago.h', { n: Math.floor(s / 3600) });
+  return new Date(iso).toLocaleDateString(locale());
 }
 
 function haversine(a, b) {
@@ -70,6 +70,24 @@ function haversine(a, b) {
 }
 
 const directionsUrl = p => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
+const mapSearchUrl = q => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+
+// Countries: names in the current UI language, flags from the ISO code
+const flagOf = code => code && /^[A-Z]{2}$/.test(code)
+  ? String.fromCodePoint(...[...code].map(c => 0x1F1E6 + c.charCodeAt(0) - 65)) : '🌏';
+function countryName(code, lang = locale()) {
+  if (!code) return '';
+  try { return new Intl.DisplayNames([lang], { type: 'region' }).of(code); } catch (_) { return code; }
+}
+function languageName(english) {
+  const map = { English: 'en', Korean: 'ko', Chinese: 'zh', Japanese: 'ja', Thai: 'th', Vietnamese: 'vi', Indonesian: 'id', Malay: 'ms',
+    Filipino: 'fil', Spanish: 'es', French: 'fr', German: 'de', Russian: 'ru', Arabic: 'ar', Hindi: 'hi', Portuguese: 'pt', Italian: 'it', Mongolian: 'mn' };
+  const code = map[english];
+  if (!code) return english || '';
+  try { return new Intl.DisplayNames([locale()], { type: 'language' }).of(code); } catch (_) { return english; }
+}
+const SPOKEN = ['English', 'Korean', 'Chinese', 'Japanese', 'Thai', 'Vietnamese', 'Indonesian', 'Malay', 'Filipino', 'Mongolian',
+  'Hindi', 'Arabic', 'Russian', 'Spanish', 'Portuguese', 'French', 'German', 'Italian', 'Other'];
 
 // ------------------------------------------------------------------ state
 function readUid() {
@@ -87,13 +105,14 @@ const state = {
   category: 'all',
   origin: null,        // phone GPS if the tourist allowed it
   recs: [],
-  uv: null,
-  sunOnBead: false,
+  weather: null,
+  adviceKey: null,
+  route: null,         // road geometry for the stamp route
   maps: {},            // id -> { map, layer }
   recMarkers: {}
 };
 
-const DIET_TAGS = { TAG_HALAL: 'Halal', TAG_VEGAN: 'Vegan', TAG_VEGETARIAN: 'Vegetarian', TAG_NO_SHELLFISH: 'No Shellfish', TAG_GLUTEN_FREE: 'Gluten-Free' };
+const DIET_TAGS = ['Halal', 'Vegan', 'Vegetarian', 'No Shellfish', 'Gluten-Free'];
 const HELP_ICONS = { hospital: '🏥', police: '👮', info: 'ℹ️' };
 const CAT_COLORS = { place: '#2E86AB', food: '#F28C38', activity: '#5E9A62' };
 const JEJU_CENTER = [33.38, 126.55];
@@ -108,12 +127,21 @@ function stationName(id) {
   return state.config?.stations.find(s => s.id === id)?.name || id;
 }
 
+const dietLabel = d => (DIET_TAGS.includes(d) ? t(`diet.${d}`) : d);
+function translateReason(r) {
+  const km = /^([\d.]+) km away$/.exec(r);
+  if (km) return t('reason.km', { km: km[1] });
+  const key = `reason.${r}`;
+  const out = t(key);
+  return out === key ? r : out;
+}
+
 // ------------------------------------------------------------------ maps
 function getMap(id) {
   if (state.maps[id]) return state.maps[id];
   const el = document.getElementById(id);
   if (!window.L) {
-    el.innerHTML = '<div class="empty"><div class="big">🗺️</div>Map could not load right now.</div>';
+    el.innerHTML = `<div class="empty"><div class="big">🗺️</div>${esc(t('map.fail'))}</div>`;
     return null;
   }
   const map = L.map(el, { zoomControl: false, attributionControl: true, tap: true }).setView(JEJU_CENTER, 9);
@@ -133,7 +161,7 @@ function addMe(entry) {
   const me = myPosition();
   if (!me) return null;
   L.circleMarker([me.lat, me.lng], { radius: 9, color: '#fff', weight: 3, fillColor: '#2E86AB', fillOpacity: 1 })
-    .addTo(entry.layer).bindPopup(state.origin ? 'You are here' : 'Your last wish-band tap');
+    .addTo(entry.layer).bindPopup(state.origin ? t('map.you') : t('map.lastTap'));
   return [me.lat, me.lng];
 }
 
@@ -154,8 +182,8 @@ function renderHomeMap() {
     const m = L.marker([r.lat, r.lng], { icon: pin(r.emoji || '📍', CAT_COLORS[r.category], i === 0 ? 'best' : ''), zIndexOffset: i === 0 ? 500 : 0 })
       .addTo(entry.layer)
       .bindPopup(`<div class="pop"><b>${esc(r.title)}</b><span>${esc(r.title_ko || '')}</span>
-        <small>${esc((r.reasons || []).join(' · '))}</small>
-        <button class="btn small" data-go="${esc(r.id)}">Directions</button></div>`);
+        <small>${esc((r.reasons || []).map(translateReason).join(' · '))}</small>
+        <button class="btn small" data-go="${esc(r.id)}">${esc(t('map.directions'))}</button></div>`);
     state.recMarkers[r.id] = m;
     pts.push([r.lat, r.lng]);
   });
@@ -170,7 +198,7 @@ function renderSosMap() {
   entry.layer.clearLayers();
   const pts = state.config.helpPoints.map(h => {
     L.marker([h.lat, h.lng], { icon: pin(HELP_ICONS[h.type] || '🆘', '#D8574A') }).addTo(entry.layer)
-      .bindPopup(`<div class="pop"><b>${esc(h.name)}</b><a class="btn small sea" href="tel:${esc(h.phone)}">Call ${esc(h.phone)}</a></div>`);
+      .bindPopup(`<div class="pop"><b>${esc(h.name)}</b><a class="btn small sea" href="tel:${esc(h.phone)}">${esc(t('help.call'))} ${esc(h.phone)}</a></div>`);
     return [h.lat, h.lng];
   });
   const me = addMe(entry);
@@ -179,40 +207,55 @@ function renderSosMap() {
 }
 
 function nextStation() {
-  const cfg = state.config, t = state.tourist;
-  return [...cfg.stations].sort((a, b) => a.order - b.order).find(s => !t?.stamps?.[s.id]) || null;
+  const cfg = state.config, tr = state.tourist;
+  return [...cfg.stations].sort((a, b) => a.order - b.order).find(s => !tr?.stamps?.[s.id]) || null;
+}
+
+async function loadRoute() {
+  try { state.route = await api('/api/route'); } catch (_) { state.route = null; }
+  if (state.maps.mapStamps) renderStampsMap();
 }
 
 function renderStampsMap() {
   const entry = getMap('mapStamps');
   if (!entry) return;
   entry.layer.clearLayers();
-  const cfg = state.config, t = state.tourist;
+  const cfg = state.config, tr = state.tourist;
   const ordered = [...cfg.stations].sort((a, b) => a.order - b.order);
   const next = nextStation();
-  L.polyline(ordered.map(s => [s.lat, s.lng]), { color: '#F28C38', weight: 4, opacity: .7, dashArray: '2 10', lineCap: 'round' }).addTo(entry.layer);
+  const road = state.route && state.route.source !== 'straight' && state.route.coordinates?.length > 2;
+  const line = road ? state.route.coordinates : ordered.map(s => [s.lat, s.lng]);
+  // white casing under the orange line keeps it readable on any tile colour
+  L.polyline(line, { color: '#fff', weight: road ? 8 : 6, opacity: .85, lineCap: 'round', lineJoin: 'round' }).addTo(entry.layer);
+  L.polyline(line, road
+    ? { color: '#F28C38', weight: 4.5, opacity: .95, lineCap: 'round', lineJoin: 'round' }
+    : { color: '#F28C38', weight: 4, opacity: .8, dashArray: '2 10', lineCap: 'round' }).addTo(entry.layer);
+  $('#routeNote').textContent = road
+    ? `🛣️ ${t('map.road')}${state.route.distanceKm ? ` · ${state.route.distanceKm} km` : ''}`
+    : `↔️ ${t('map.straight')}`;
+
   const pts = ordered.map(s => {
     const k = cfg.kinds[s.kind];
-    const done = t?.stamps?.[s.id];
+    const done = tr?.stamps?.[s.id];
     L.marker([s.lat, s.lng], { icon: pin(done ? '✅' : k.emoji, done ? '#9AA39B' : k.color, next?.id === s.id ? 'pulse' : '') }).addTo(entry.layer)
       .bindPopup(`<div class="pop"><b>${esc(s.name)}</b><span>${esc(s.name_ko)}</span>
-        <small>${esc(k.label)} station · ${done ? 'stamped ✔' : 'not yet'}</small>
-        <a class="btn small" target="_blank" href="${directionsUrl(s)}">Directions</a></div>`);
+        <small>${esc(t('stamps.station', { kind: t(`kind.${s.kind}`) }))} · ${esc(done ? t('stamps.stamped') : t('stamps.notYet'))}</small>
+        <a class="btn small" target="_blank" rel="noopener" href="${directionsUrl(s)}">${esc(t('map.directions'))}</a></div>`);
     return [s.lat, s.lng];
   });
   const me = addMe(entry);
   if (me) pts.push(me);
-  fit(entry, pts);
+  fit(entry, road ? pts.concat(line.filter((_, i) => i % 20 === 0)) : pts);
 
   const box = $('#nextStop');
   if (!next) {
-    box.innerHTML = '<span class="e">🎉</span><div><b>Route complete!</b><div class="muted">All stamps collected. Enjoy your market treat.</div></div>';
+    box.innerHTML = `<span class="e">🎉</span><div><b>${esc(t('stamps.complete'))}</b><div class="muted">${esc(t('stamps.completeSub'))}</div></div>`;
   } else {
-    const me = myPosition();
-    const d = me ? haversine(me, next) : null;
+    const here = myPosition();
+    const d = here ? haversine(here, next) : null;
     box.innerHTML = `<span class="e">${cfg.kinds[next.kind].emoji}</span>
-      <div style="flex:1;min-width:0"><b>Next stop: ${esc(next.name)}</b><div class="muted">${esc(next.blurb || '')}${d != null ? ` · ${d.toFixed(1)} km` : ''}</div></div>
-      <a class="btn small" target="_blank" href="${directionsUrl(next)}">Go</a>`;
+      <div style="flex:1;min-width:0"><b>${esc(t('stamps.next', { name: next.name }))}</b><div class="muted">${esc(next.blurb || '')}${d != null ? ` · ${d.toFixed(1)} km` : ''}</div></div>
+      <a class="btn small" target="_blank" rel="noopener" href="${directionsUrl(next)}">${esc(t('picks.go'))}</a>`;
   }
   box.classList.remove('hidden');
 }
@@ -227,46 +270,98 @@ function refreshMapSize() {
   }, 80);
 }
 
-// ------------------------------------------------------------------ rendering
+// ------------------------------------------------------------------ profile (hero + Me tab)
+const isGuestName = n => !n || /^Wish-band Guest/.test(n);
+
 function renderProfile() {
-  const t = state.tourist;
-  if (!t) return;
-  const first = !t.name || /^Wish-band Guest/.test(t.name) ? 'traveler' : t.name.split(/[\s(]/)[0];
-  $('#greetName').textContent = `Hello, ${first}!`;
-  $('#uidTag').textContent = `wish-band ${t.uid}`;
-  $('#meName').textContent = t.name;
-  $('#meFrom').textContent = `${t.country || 'Somewhere lovely'} · ${t.language || 'English'}`;
-  $('#meDiet').textContent = t.dietary && t.dietary !== 'None' ? t.dietary : 'No restrictions';
-  $('#meSos').textContent = t.emergencyContact || 'Not set yet';
-  $('#meLang').textContent = t.language || 'English';
-  $('#meDeposit').innerHTML = t.depositPaid ? '<span class="chip leaf">10,000₩ held · refunded on return</span>' : '<span class="chip">None</span>';
-  const loc = t.lastLocation;
-  $('#lastLoc').innerHTML = loc
-    ? `📍 Last seen ${loc.source === 'station' ? 'at <b>' + esc(stationName(loc.station)) + '</b>' : 'by <b>phone GPS</b>'} · ${timeAgo(loc.timestamp)}`
-    : '📍 No location yet. Tap a station or press 📡 on the map.';
+  const tr = state.tourist;
+  if (!tr) return;
+  const first = isGuestName(tr.name) ? t('greet.traveler') : tr.name.split(/[\s(]/)[0];
+  $('#greetName').textContent = t('greet.hello', { name: first });
+  $('#uidTag').textContent = `wish-band ${tr.uid}`;
+
+  const code = tr.countryCode;
+  $('#meFlag').textContent = code ? flagOf(code) : '🧳';
+  $('#meName').textContent = isGuestName(tr.name) ? t('greet.traveler') : tr.name;
+  $('#meFrom').textContent = [code ? countryName(code) : '', tr.language ? t('me.speaks', { lang: languageName(tr.language) }) : '']
+    .filter(Boolean).join(' · ');
+  $('#meUid').textContent = tr.uid;
+  $('#meCountry').innerHTML = code ? `<span class="flag">${flagOf(code)}</span> ${esc(countryName(code))}` : `<span class="muted">${esc(t('me.unknownCountry'))}</span>`;
+
+  const diets = String(tr.dietary || '').split(',').map(s => s.trim()).filter(s => s && s.toLowerCase() !== 'none');
+  $('#meDiet').innerHTML = diets.length
+    ? diets.map(d => `<span class="chip tan">${esc(dietLabel(d))}</span>`).join('')
+    : `<span class="chip leaf">${esc(t('me.noDiet'))}</span>`;
+
+  // Emergency contact card
+  const phone = tr.emergencyContact;
+  $('#meContact').innerHTML = phone
+    ? `<div class="lbl">🆘 ${esc(t('me.emergency'))}</div>
+       <div class="contact-row">
+         <div class="avatar-sm">${esc((tr.emergencyName || '☎').slice(0, 1).toUpperCase())}</div>
+         <div style="flex:1;min-width:0">
+           <div class="nm">${esc(tr.emergencyName || t('me.emergency'))}${tr.emergencyRelation ? ` <span class="chip">${esc(relLabel(tr.emergencyRelation))}</span>` : ''}</div>
+           <div class="mono muted">${esc(phone)}</div>
+         </div>
+         <a class="btn small sea" href="tel:${esc(phone.replace(/[^\d+]/g, ''))}">📞 ${esc(t('me.call'))}</a>
+       </div>`
+    : `<div class="lbl">🆘 ${esc(t('me.emergency'))}</div><button class="btn ghost block small" data-act="edit">${esc(t('me.addContact'))}</button>`;
+
+  const loc = tr.lastLocation;
+  $('#lastLoc').textContent = loc
+    ? (loc.source === 'station' ? t('loc.seenAt', { place: stationName(loc.station), ago: timeAgo(loc.timestamp) }) : t('loc.seenGps', { ago: timeAgo(loc.timestamp) }))
+    : t('loc.none');
+  renderEmbassy();
 }
 
+function relLabel(rel) {
+  const key = { Family: 'rel.family', Partner: 'rel.partner', Friend: 'rel.friend', 'Travel buddy': 'rel.buddy', Other: 'rel.other' }[rel];
+  return key ? t(key) : rel;
+}
+
+// Embassy / consulate for the tourist's nationality: a live map search keeps address and phone current.
+function renderEmbassy() {
+  const box = $('#embassyCard');
+  if (!box || !state.config) return;
+  const code = state.tourist?.countryCode;
+  if (!code) { box.innerHTML = `<p class="muted small-p">${esc(t('sos.embassySet'))}</p>`; return; }
+  if (code === 'KR') { box.innerHTML = `<p class="small-p"><b>${flagOf(code)}</b> ${esc(t('sos.home'))}</p>`; return; }
+  const en = countryName(code, 'en');
+  const consulate = state.config.jejuConsulates?.[code];
+  const office = consulate || `Embassy of ${en} in Seoul`;
+  box.innerHTML = `<div class="emb-row">
+      <span class="flag big">${flagOf(code)}</span>
+      <div style="flex:1;min-width:0"><b>${esc(office)}</b><div class="muted small-p">${esc(t('sos.embassyHint'))}</div></div>
+    </div>
+    <div class="emb-acts">
+      <a class="btn small sea" target="_blank" rel="noopener" href="${mapSearchUrl(office)}">🗺️ ${esc(t('sos.embassyFind'))}</a>
+      ${consulate ? `<a class="btn small ghost" target="_blank" rel="noopener" href="${mapSearchUrl(`Embassy of ${en} in Seoul`)}">🏛️ Seoul</a>` : ''}
+      <a class="btn small ghost" href="tel:1330">📞 1330</a>
+    </div>`;
+}
+
+// ------------------------------------------------------------------ stamps + voucher
 function renderStamps(justStamped = []) {
-  const t = state.tourist, cfg = state.config;
-  if (!t || !cfg) return;
+  const tr = state.tourist, cfg = state.config;
+  if (!tr || !cfg) return;
   $('#stamps').innerHTML = cfg.stations.map(s => {
-    const on = t.stamps?.[s.id];
+    const on = tr.stamps?.[s.id];
     const k = cfg.kinds[s.kind];
     return `<div class="stamp ${s.kind} ${on ? 'on' : ''} ${justStamped.includes(s.id) ? 'just' : ''}">
       <div class="ring">${k.emoji}</div>
-      <div class="kind">${esc(k.label)} · ${esc(k.label_ko)}</div>
+      <div class="kind">${esc(t(`kind.${s.kind}`))}</div>
       <div class="name">${esc(s.name)}</div>
     </div>`;
   }).join('');
-  const got = cfg.stations.filter(s => t.stamps?.[s.id]).length;
+  const got = cfg.stations.filter(s => tr.stamps?.[s.id]).length;
   $('#progressBar').style.width = `${(got / cfg.stations.length) * 100}%`;
-  $('#progressText').textContent = `${got} / ${cfg.stations.length} stamps`;
+  $('#progressText').textContent = t('stamps.count', { got, total: cfg.stations.length });
   $('.nav [data-view="stamps"] .i').textContent = got === cfg.stations.length ? '🎉' : '🗿';
 
-  const history = [...(t.checkinHistory || [])].reverse().slice(0, 12);
+  const history = [...(tr.checkinHistory || [])].reverse().slice(0, 12);
   $('#timeline').innerHTML = history.length
-    ? history.map(h => `<li><span>${cfg.kinds[h.kind]?.emoji || '📍'}</span>${esc(stationName(h.station))}${h.visitSequence > 1 ? ` <span class="chip">visit ${h.visitSequence}</span>` : ''}<span class="t">${timeAgo(h.timestamp)}</span></li>`).join('')
-    : '<li class="muted">No taps yet. Find a wish-band station on the map and tap your bracelet!</li>';
+    ? history.map(h => `<li><span>${cfg.kinds[h.kind]?.emoji || '📍'}</span>${esc(stationName(h.station))}${h.visitSequence > 1 ? ` <span class="chip">${esc(t('trail.visit', { n: h.visitSequence }))}</span>` : ''}<span class="t">${timeAgo(h.timestamp)}</span></li>`).join('')
+    : `<li class="muted">${esc(t('trail.empty'))}</li>`;
 
   renderVoucher();
   renderRouteStrip();
@@ -275,49 +370,23 @@ function renderStamps(justStamped = []) {
 
 // Small progress bar on For You so nobody has to open Stamps to know what's next.
 function renderRouteStrip() {
-  const t = state.tourist, cfg = state.config;
+  const tr = state.tourist, cfg = state.config;
   const ordered = [...cfg.stations].sort((a, b) => a.order - b.order);
-  const got = ordered.filter(s => t.stamps?.[s.id]).length;
-  const v = t.voucher?.status;
+  const got = ordered.filter(s => tr.stamps?.[s.id]).length;
+  const v = tr.voucher?.status;
   const next = nextStation();
-  $('#routeBeads').innerHTML = ordered.map(s => `<i class="${t.stamps?.[s.id] ? 'on' : ''}">${cfg.kinds[s.kind].emoji}</i>`).join('');
-  const strip = $('#routeStrip');
-  strip.classList.toggle('ready', v === 'UNLOCKED');
+  $('#routeBeads').innerHTML = ordered.map(s => `<i class="${tr.stamps?.[s.id] ? 'on' : ''}">${cfg.kinds[s.kind].emoji}</i>`).join('');
+  $('#routeStrip').classList.toggle('ready', v === 'UNLOCKED');
   if (v === 'UNLOCKED') {
-    $('#routeTitle').textContent = '🎁 Your 4,000₩ voucher is ready';
-    $('#routeSub').textContent = 'Tap to show it at Dongmun Market';
+    $('#routeTitle').textContent = t('route.ready');
+    $('#routeSub').textContent = t('route.readySub');
   } else if (v === 'REDEEMED') {
-    $('#routeTitle').textContent = 'Wish Route complete 💚';
-    $('#routeSub').textContent = 'Thanks for supporting local vendors';
+    $('#routeTitle').textContent = t('route.done');
+    $('#routeSub').textContent = t('route.doneSub');
   } else {
-    $('#routeTitle').textContent = `Wish Route ${got}/${ordered.length}`;
-    $('#routeSub').textContent = next ? `Next: ${next.name}` : 'All stamps collected';
+    $('#routeTitle').textContent = t('route.title', { got, total: ordered.length });
+    $('#routeSub').textContent = got === 0 ? t('route.sub0') : next ? t('route.next', { name: next.name }) : t('route.all');
   }
-}
-
-// ------------------------------------------------------------------ quick start (first visit)
-const qsKey = () => `wb-qs-${state.uid}`;
-function storeGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
-function storeSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
-
-function renderQuickStart() {
-  const t = state.tourist;
-  const isNew = /^Wish-band Guest/.test(t.name || '') && (!t.dietary || t.dietary === 'None');
-  const show = isNew && !storeGet(qsKey());
-  $('#quickStart').classList.toggle('hidden', !show);
-  if (!show || $('#qsDiet').children.length) return;
-  $('#qsDiet').innerHTML = Object.values(DIET_TAGS).map(l => `<button type="button" data-diet="${l}">${l}</button>`).join('');
-}
-
-async function saveQuickDiet() {
-  const picked = $$('#qsDiet .on').map(b => b.dataset.diet);
-  $('#qsDone').textContent = picked.length ? `Done · ${picked.join(', ')}` : 'No restrictions, show me Jeju';
-  try {
-    const r = await api('/api/register', { uid: state.uid, dietary: picked.join(', ') || 'None' });
-    state.tourist = { ...state.tourist, ...r.tourist };
-    renderProfile();
-    loadRecs();
-  } catch (e) { toast(e.message, 'warn'); }
 }
 
 function renderVoucher() {
@@ -327,89 +396,103 @@ function renderVoucher() {
   box.classList.toggle('used', v.status === 'REDEEMED' || v.status === 'EXPIRED');
   const qr = $('#voucherQr');
   const btn = $('#btnRedeem');
+  const fmtDate = iso => new Date(iso || Date.now()).toLocaleDateString(locale());
   if (v.status === 'UNLOCKED') {
-    $('#voucherBadge').textContent = '🎉 Ready to use';
+    $('#voucherBadge').textContent = t('voucher.ready');
     $('#voucherCode').textContent = v.code;
-    $('#voucherDesc').textContent = `Valid until ${new Date(v.expiresAt).toLocaleDateString()}. Show this at any participating Dongmun Market stall.`;
+    $('#voucherDesc').textContent = t('voucher.validUntil', { date: fmtDate(v.expiresAt) });
     qr.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=${encodeURIComponent(v.code)}`;
     qr.classList.remove('hidden');
     btn.disabled = false;
-    btn.textContent = 'Show to merchant';
+    btn.textContent = t('voucher.show');
   } else if (v.status === 'REDEEMED') {
-    $('#voucherBadge').textContent = '✅ Used';
+    $('#voucherBadge').textContent = t('voucher.used');
     $('#voucherCode').textContent = v.code || 'USED';
-    $('#voucherDesc').textContent = `Enjoyed on ${new Date(v.redeemedAt || Date.now()).toLocaleString()}. Thank you for supporting local vendors!`;
+    $('#voucherDesc').textContent = t('voucher.usedDesc', { date: fmtDate(v.redeemedAt) });
     qr.classList.add('hidden');
     btn.disabled = true;
-    btn.textContent = 'Voucher used';
+    btn.textContent = t('voucher.usedBtn');
   } else if (v.status === 'EXPIRED') {
-    $('#voucherBadge').textContent = 'Expired';
+    $('#voucherBadge').textContent = t('voucher.expired');
     qr.classList.add('hidden');
     btn.disabled = true;
+    btn.textContent = t('voucher.expired');
   } else {
     const got = Object.values(state.tourist?.stamps || {}).filter(Boolean).length;
-    $('#voucherBadge').textContent = `🔒 ${got} / ${state.config?.stations.length || 3} stamps`;
+    $('#voucherBadge').textContent = t('voucher.locked', { got, total: state.config?.stations.length || 3 });
     $('#voucherCode').textContent = '•••• •••• ••••';
-    $('#voucherDesc').textContent = 'Collect a food, place and activity stamp to unlock.';
+    $('#voucherDesc').textContent = t('voucher.lockedDesc');
     qr.classList.add('hidden');
     btn.disabled = true;
-    btn.textContent = 'Locked';
+    btn.textContent = t('voucher.lockedBtn');
   }
 }
 
-function renderUv() {
-  const uv = state.uv;
-  $('#uvNum').textContent = uv ?? '–';
-  const sun = state.sunOnBead || (uv ?? 0) >= 3;
-  $('#bead').classList.toggle('sun', sun);
-  $('#beadBig').classList.toggle('sun', sun);
+// ------------------------------------------------------------------ weather + picks
+function renderWeather() {
+  const w = state.weather;
+  if (!w) return;
+  const label = t(`wx.${w.label}`);
+  $('#wxPillEmoji').textContent = w.emoji;
+  $('#wxPillTemp').textContent = `${w.tempC}°`;
+  $('#wxPillUv').textContent = ` · UV ${w.uv}`;
+  $('#wxEmoji').textContent = w.emoji;
+  $('#wxTemp').textContent = `${w.tempC}°C`;
+  $('#wxLabel').textContent = ` ${label}${w.source === 'fallback' ? ` (${t('wx.estimate')})` : ''}`;
+  const stat = (icon, text, warn) => `<span class="${warn ? 'warn' : ''}">${icon} ${esc(text)}</span>`;
+  $('#wxStats').innerHTML = [
+    stat('☔', t('wx.rain', { p: w.rainChance }), w.rainy),
+    stat('💨', t('wx.wind', { w: w.windKmh }), w.windy),
+    stat('🕶️', t('wx.uv', { uv: w.uv }), w.uv >= 6)
+  ].join('');
+  $('#wxCard').classList.toggle('rainy', !!w.rainy);
+  $('#wxAdvice').textContent = t(`advice.${state.adviceKey || 'unknown'}`, { wind: w.windKmh, temp: w.tempC });
 }
 
 function renderRecs(data) {
   if (data) {
     state.recs = data.recommendations || [];
-    state.uv = data.uvIndex;
-    $('#uvAdvice').textContent = data.advice + (data.uvSource === 'fallback' ? ' (estimate)' : '');
-    $('#adviceStrip .e').textContent = (data.uvIndex ?? 0) >= 6 ? '🧴' : (data.uvIndex ?? 0) >= 3 ? '😎' : '🌤️';
-    renderUv();
+    if (data.weather) state.weather = data.weather;
+    state.adviceKey = data.adviceKey || state.adviceKey;
+    renderWeather();
   }
   renderHomeMap();
   const list = $('#recList');
   if (!state.recs.length) {
-    list.innerHTML = `<div class="empty"><div class="big">🌿</div>Nothing safe to suggest in this category yet.<br>Try another tab or update your diet in <b>Me</b>.</div>`;
+    list.innerHTML = `<div class="empty"><div class="big">🌿</div>${esc(t('picks.empty'))}</div>`;
     return;
   }
   list.innerHTML = state.recs.slice(0, 8).map((r, i) => `
     <div class="rec ${i === 0 ? 'top' : ''}" data-id="${esc(r.id)}" tabindex="0">
       <div class="ico ${r.category}">${r.emoji || '📍'}<span class="rank">${i + 1}</span></div>
       <div class="body">
-        ${i === 0 ? '<div class="badge-top">★ Best match right now</div>' : ''}
+        ${i === 0 ? `<div class="badge-top">${esc(t('picks.best'))}</div>` : ''}
         <div class="title">${esc(r.title)} <span class="ko">${esc(r.title_ko || '')}</span></div>
         <div class="note">${esc(r.note || '')}</div>
-        <div class="reasons">${(r.reasons || []).slice(0, i === 0 ? 2 : 1).map(x => `<span class="chip ${r.category === 'food' ? 'tan' : r.category === 'place' ? 'sea' : 'leaf'}">${esc(x)}</span>`).join('')}</div>
+        <div class="reasons">${(r.reasons || []).slice(0, i === 0 ? 2 : 1).map(x => `<span class="chip ${r.category === 'food' ? 'tan' : r.category === 'place' ? 'sea' : 'leaf'}">${esc(translateReason(x))}</span>`).join('')}</div>
       </div>
-      <button class="btn small go" data-go="${esc(r.id)}" aria-label="Directions">🧭 Go</button>
+      <button class="btn small go" data-go="${esc(r.id)}" aria-label="${esc(t('map.directions'))}">${esc(t('picks.go'))}</button>
     </div>`).join('');
 }
 
 // ------------------------------------------------------------------ data loading
 async function loadTourist({ celebrate = true } = {}) {
   const before = state.tourist;
-  const t = await api(`/api/tourist/${encodeURIComponent(state.uid)}`);
-  state.tourist = t;
+  const tr = await api(`/api/tourist/${encodeURIComponent(state.uid)}`);
+  state.tourist = tr;
 
-  const newStamps = before ? Object.keys(t.stamps || {}).filter(k => t.stamps[k] && !before.stamps?.[k]) : [];
-  const voucherJustUnlocked = before && before.voucher?.status === 'LOCKED' && t.voucher?.status === 'UNLOCKED';
+  const newStamps = before ? Object.keys(tr.stamps || {}).filter(k => tr.stamps[k] && !before.stamps?.[k]) : [];
+  const voucherJustUnlocked = before && before.voucher?.status === 'LOCKED' && tr.voucher?.status === 'UNLOCKED';
 
   renderProfile();
   if (!before) renderQuickStart();
-  if (!before || JSON.stringify(before.stamps) !== JSON.stringify(t.stamps) || before.voucher?.status !== t.voucher?.status
-      || (before.checkinHistory || []).length !== (t.checkinHistory || []).length) renderStamps(newStamps);
-  renderSos(t.activeSos);
+  if (!before || JSON.stringify(before.stamps) !== JSON.stringify(tr.stamps) || before.voucher?.status !== tr.voucher?.status
+      || (before.checkinHistory || []).length !== (tr.checkinHistory || []).length) renderStamps(newStamps);
+  renderSos(tr.activeSos);
 
   if (celebrate && newStamps.length) {
     chime(voucherJustUnlocked ? 'voucher' : 'stamp');
-    toast(voucherJustUnlocked ? '🎉 All stamps! Your market voucher is unlocked' : `🗿 New stamp: ${stationName(newStamps[0])}`, 'good');
+    toast(voucherJustUnlocked ? t('toast.allStamps') : t('toast.newStamp', { name: stationName(newStamps[0]) }), 'good');
     if (voucherJustUnlocked) confetti();
     loadRecs();
   }
@@ -421,28 +504,55 @@ async function loadRecs() {
   try {
     renderRecs(await api(`/api/recommendations?${q}`));
   } catch (e) {
-    $('#recList').innerHTML = `<div class="empty"><div class="big">📡</div>Could not load suggestions.<br>${esc(e.message)}</div>`;
+    $('#recList').innerHTML = `<div class="empty"><div class="big">📡</div>${esc(t('picks.error'))}<br>${esc(e.message)}</div>`;
   }
 }
 
+// ------------------------------------------------------------------ quick start (first visit)
+const qsKey = () => `wb-qs-${state.uid}`;
+function storeGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
+function storeSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+
+function renderQuickStart() {
+  const tr = state.tourist;
+  const isNew = isGuestName(tr.name) && (!tr.dietary || tr.dietary === 'None');
+  const show = isNew && !storeGet(qsKey());
+  $('#quickStart').classList.toggle('hidden', !show);
+  if (!show) return;
+  const on = new Set($$('#qsDiet .on').map(b => b.dataset.diet));
+  $('#qsDiet').innerHTML = DIET_TAGS.map(d => `<button type="button" data-diet="${d}" class="${on.has(d) ? 'on' : ''}">${esc(dietLabel(d))}</button>`).join('');
+}
+
+async function saveQuickDiet() {
+  const picked = $$('#qsDiet .on').map(b => b.dataset.diet);
+  $('#qsDone').textContent = picked.length ? t('qs.done', { list: picked.map(dietLabel).join(', ') }) : t('qs.none');
+  try {
+    const r = await api('/api/register', { uid: state.uid, dietary: picked.join(', ') || 'None' });
+    state.tourist = { ...state.tourist, ...r.tourist };
+    renderProfile();
+    loadRecs();
+  } catch (e) { toast(e.message, 'warn'); }
+}
+
 // ------------------------------------------------------------------ live sync
-function setLive(on, text) {
+function setLive(on, key) {
   $('#live').classList.toggle('on', on);
-  $('#liveText').textContent = text;
+  $('#liveText').dataset.i18n = key;
+  $('#liveText').textContent = t(key);
 }
 
 let pollTimer = null;
 function startPolling() {
   if (pollTimer) return;
-  setLive(true, 'Live');
-  pollTimer = setInterval(() => loadTourist().then(() => setLive(true, 'Live')).catch(() => setLive(false, 'Offline')), 2500);
+  setLive(true, 'live.on');
+  pollTimer = setInterval(() => loadTourist().then(() => setLive(true, 'live.on')).catch(() => setLive(false, 'live.off')), 2500);
 }
 
 function startSync() {
   if (location.hostname.endsWith('vercel.app')) return startPolling();
   try {
     const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
-    ws.onopen = () => setLive(true, 'Live');
+    ws.onopen = () => setLive(true, 'live.on');
     ws.onmessage = ev => {
       const { event, payload } = JSON.parse(ev.data);
       const uid = payload?.uid || payload?.tourist?.uid;
@@ -456,17 +566,18 @@ function startSync() {
 // ------------------------------------------------------------------ SOS tab
 function renderHelp() {
   const cfg = state.config;
-  $('#hotlines').innerHTML = cfg.hotlines.map(h => `<a class="hotline" href="tel:${esc(h.number)}"><b>${esc(h.number)}</b><span>${esc(h.label)}</span></a>`).join('');
+  $('#hotlines').innerHTML = cfg.hotlines.map(h => `<a class="hotline" href="tel:${esc(h.number)}"><b>${esc(h.number)}</b><span>${esc(t(`hl.${h.number}`) === `hl.${h.number}` ? h.label : t(`hl.${h.number}`))}</span></a>`).join('');
   const origin = myPosition();
   const dist = h => origin ? haversine(origin, h) : null;
   const items = [...cfg.helpPoints].sort((a, b) => (dist(a) ?? 0) - (dist(b) ?? 0));
   $('#helpList').innerHTML = items.map(h => {
     const d = dist(h);
     return `<div class="help-item" data-lat="${h.lat}" data-lng="${h.lng}"><span class="e">${HELP_ICONS[h.type] || '🆘'}</span>
-      <div style="flex:1;min-width:0"><div class="n">${esc(h.name)}</div><div class="d">${d != null ? d.toFixed(1) + ' km · ' : ''}${esc(h.type)}</div></div>
-      <a class="icon-btn" href="${directionsUrl(h)}" target="_blank" title="Directions">🧭</a>
-      <a class="btn small sea" href="tel:${esc(h.phone)}">Call</a></div>`;
+      <div style="flex:1;min-width:0"><div class="n">${esc(h.name)}</div><div class="d">${d != null ? d.toFixed(1) + ' km · ' : ''}${esc(t(`help.${h.type}`))}</div></div>
+      <a class="icon-btn" href="${directionsUrl(h)}" target="_blank" rel="noopener" title="${esc(t('map.directions'))}">🧭</a>
+      <a class="btn small sea" href="tel:${esc(h.phone)}">${esc(t('help.call'))}</a></div>`;
   }).join('');
+  renderEmbassy();
 }
 
 let activeSos = null;
@@ -483,8 +594,8 @@ function renderSos(alert) {
   $$('.sos-step').forEach((el, i) => el.classList.toggle('on', i <= idx));
   const loc = activeSos.location;
   $('#sosDetail').textContent =
-    (activeSos.status === 'DISPATCHED' ? `${activeSos.responder || 'Rescue team'} is coming${activeSos.etaMinutes ? `, about ${activeSos.etaMinutes} min` : ''}. ` : '') +
-    (loc ? `Location sent (${loc.source === 'phone' ? 'phone GPS' : 'last wish-band tap'}).` : 'No location yet, please call 119 as well.');
+    (activeSos.status === 'DISPATCHED' ? t('sos.coming', { who: activeSos.responder || t('sos.rescue'), eta: activeSos.etaMinutes ? t('sos.eta', { m: activeSos.etaMinutes }) : '' }) : '') +
+    (loc ? t('sos.locSent', { src: loc.source === 'phone' ? t('sos.srcPhone') : t('sos.srcTap') }) : t('sos.noLoc'));
 }
 
 function setupHold() {
@@ -505,7 +616,7 @@ function setupHold() {
 
 async function sendSos() {
   if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
-  toast('🚨 Sending SOS…', 'warn');
+  toast(t('sos.sending'), 'warn');
   let pos = null;
   try { pos = await getPosition(); } catch (_) {}
   try {
@@ -514,9 +625,9 @@ async function sendSos() {
       latitude: pos?.lat, longitude: pos?.lng, accuracy: pos?.accuracy
     });
     renderSos(r.alert);
-    toast('SOS sent. The help desk can see you.', 'good');
+    toast(t('sos.sent'), 'good');
   } catch (e) {
-    toast(`SOS failed: ${e.message}. Call 119!`, 'warn');
+    toast(t('sos.failed', { e: e.message }), 'warn');
   }
 }
 
@@ -537,10 +648,10 @@ async function shareLocation() {
     const pos = await getPosition();
     state.origin = pos;
     await api('/api/location', { uid: state.uid, ...pos });
-    toast('📍 Location saved', 'good');
+    toast(t('loc.saved'), 'good');
     return pos;
   } catch (e) {
-    toast(`Location: ${e.message}`, 'warn');
+    toast(t('loc.err', { e: e.message }), 'warn');
     return null;
   }
 }
@@ -553,7 +664,8 @@ async function autoLocate() {
     const pos = await getPosition();
     state.origin = pos;
     api('/api/location', { uid: state.uid, ...pos }).catch(() => {});
-    $('#recWhy').textContent = 'sorted by what is near you';
+    $('#recWhy').dataset.i18n = 'picks.near';
+    $('#recWhy').textContent = t('picks.near');
     loadRecs();
   } catch (_) {}
 }
@@ -562,17 +674,51 @@ async function autoLocate() {
 function openSheet(id) { $(id).classList.add('open'); }
 function closeSheets() { $$('.sheet-backdrop').forEach(s => s.classList.remove('open')); }
 
+function countryOptions(selected) {
+  const dial = state.config?.dialCodes || {};
+  const codes = Object.keys(dial).sort((a, b) => countryName(a).localeCompare(countryName(b), locale()));
+  return `<option value="">${esc(t('edit.pick'))}</option>` +
+    codes.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${flagOf(c)} ${esc(countryName(c))}</option>`).join('');
+}
+
+function dialOptions(selected) {
+  const dial = state.config?.dialCodes || {};
+  return Object.keys(dial).sort((a, b) => countryName(a).localeCompare(countryName(b), locale()))
+    .map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${flagOf(c)} +${dial[c]}</option>`).join('');
+}
+
+// "+66 812345678" -> { code: 'TH', number: '812345678' }
+function splitPhone(phone, fallbackCode) {
+  const dial = state.config?.dialCodes || {};
+  const m = /^\+(\d{1,4})\s*(.*)$/.exec(String(phone || '').trim());
+  if (!m) return { code: fallbackCode, number: phone || '' };
+  const digits = m[1] + m[2].replace(/\D/g, '');
+  // longest matching calling code wins; prefer the tourist's own country on ties (e.g. +1)
+  let best = null;
+  for (const [c, d] of Object.entries(dial)) {
+    if (digits.startsWith(d) && (!best || d.length > dial[best].length || (d.length === dial[best].length && c === fallbackCode))) best = c;
+  }
+  if (!best) return { code: fallbackCode, number: phone };
+  return { code: best, number: digits.slice(dial[best].length) };
+}
+
 function openEdit() {
-  const t = state.tourist;
-  $('#inName').value = t.name || '';
-  $('#inCountry').value = t.country || '';
-  $('#inLang').value = t.language || 'English';
-  $('#inSos').value = t.emergencyContact || '';
-  const parts = String(t.dietary || '').split(',').map(s => s.trim()).filter(s => s && s.toLowerCase() !== 'none');
-  const known = Object.values(DIET_TAGS).map(s => s.toLowerCase());
-  $('#dietPicks').innerHTML = Object.values(DIET_TAGS)
-    .map(l => `<button type="button" data-diet="${l}" class="${parts.some(p => p.toLowerCase() === l.toLowerCase()) ? 'on' : ''}">${l}</button>`).join('');
+  const tr = state.tourist;
+  const code = tr.countryCode || '';
+  $('#inName').value = isGuestName(tr.name) ? '' : tr.name;
+  $('#inCountry').innerHTML = countryOptions(code);
+  $('#inLang').innerHTML = SPOKEN.map(l => `<option value="${l}" ${l === (tr.language || 'English') ? 'selected' : ''}>${esc(l === 'Other' ? t('rel.other') : languageName(l))}</option>`).join('');
+  $('#inSosName').value = tr.emergencyName || '';
+  $('#inSosRel').value = tr.emergencyRelation || 'Family';
+  const ph = splitPhone(tr.emergencyContact, code || 'KR');
+  $('#inDial').innerHTML = dialOptions(ph.code || code || 'KR');
+  $('#inSos').value = ph.number;
+  const parts = String(tr.dietary || '').split(',').map(s => s.trim()).filter(s => s && s.toLowerCase() !== 'none');
+  const known = DIET_TAGS.map(s => s.toLowerCase());
+  $('#dietPicks').innerHTML = DIET_TAGS
+    .map(d => `<button type="button" data-diet="${d}" class="${parts.some(p => p.toLowerCase() === d.toLowerCase()) ? 'on' : ''}">${esc(dietLabel(d))}</button>`).join('');
   $('#inDietOther').value = parts.filter(p => !known.includes(p.toLowerCase())).join(', ');
+  applyI18n($('#sheetEdit'));
   openSheet('#sheetEdit');
 }
 
@@ -580,23 +726,66 @@ async function saveProfile() {
   const picked = $$('#dietPicks .on').map(b => b.dataset.diet);
   const other = $('#inDietOther').value.split(',').map(s => s.trim()).filter(Boolean);
   const dietary = [...picked, ...other].join(', ') || 'None';
+  const number = $('#inSos').value.replace(/[^\d]/g, '').replace(/^0+/, '');   // drop the trunk 0 for international format
+  const dial = state.config.dialCodes[$('#inDial').value];
+  const phone = number ? `+${dial} ${number}` : '';
+  if (number && (number.length + dial.length < 6 || number.length + dial.length > 15)) return toast(t('edit.badPhone'), 'warn');
+  const name = $('#inName').value.trim();
   $('#btnSave').disabled = true;
   try {
     const r = await api('/api/register', {
-      uid: state.uid, name: $('#inName').value, country: $('#inCountry').value,
-      language: $('#inLang').value, dietary, emergencyContact: $('#inSos').value
+      uid: state.uid,
+      ...(name ? { name } : {}),
+      countryCode: $('#inCountry').value,
+      language: $('#inLang').value, dietary,
+      emergencyContact: phone, emergencyName: $('#inSosName').value.trim(), emergencyRelation: $('#inSosRel').value
     });
     state.tourist = { ...state.tourist, ...r.tourist };
     renderProfile();
     closeSheets();
-    toast('Saved 💾', 'good');
+    toast(t('edit.saved'), 'good');
     loadRecs();
-    if (other.length) toast('Unknown allergies keep food picks extra strict');
+    if (other.length) toast(t('edit.strict'));
   } catch (e) {
     toast(e.message, 'warn');
   } finally {
     $('#btnSave').disabled = false;
   }
+}
+
+// ------------------------------------------------------------------ language + theme
+function renderSettings() {
+  $('#langShort').textContent = LANG.toUpperCase();
+  $('#langSeg').innerHTML = LANGS.map(l => `<button data-lang="${l.code}" class="${l.code === LANG ? 'on' : ''}">${esc(l.label)}</button>`).join('');
+  $('#langList').innerHTML = LANGS.map(l => `<button data-lang="${l.code}" class="${l.code === LANG ? 'on' : ''}">${esc(l.label)}</button>`).join('');
+  const theme = document.documentElement.dataset.theme;
+  $$('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.themeBtn === theme));
+  $('#btnTheme').textContent = theme === 'dark' ? '☀️' : '🌙';
+}
+
+// Re-draw everything that holds translated text
+function rerenderAll() {
+  applyI18n();
+  renderSettings();
+  if (!state.tourist || !state.config) return;
+  renderProfile();
+  renderStamps();
+  renderSos(activeSos);
+  renderQuickStart();
+  renderRecs();
+  renderWeather();
+  if (state.view === 'sos') renderHelp();
+}
+
+function changeLang(code) {
+  setLang(code);
+  closeSheets();
+  rerenderAll();
+}
+
+function changeTheme(theme) {
+  setTheme(theme);
+  renderSettings();
 }
 
 // ------------------------------------------------------------------ navigation & events
@@ -629,10 +818,39 @@ function bindEvents() {
     loadRecs();
   });
 
-  // "Go" buttons in the list and in map popups
   document.addEventListener('click', e => {
+    // "Go" buttons in the list and in map popups
     const go = e.target.closest('[data-go]');
-    if (go) { e.stopPropagation(); openDirections(go.dataset.go); }
+    if (go) { e.stopPropagation(); return openDirections(go.dataset.go); }
+    // data-open="stamps" jumps to a tab
+    const open = e.target.closest('[data-open]');
+    if (open) {
+      switchView(open.dataset.open);
+      if (open.id === 'routeStrip' && state.tourist?.voucher?.status === 'UNLOCKED') {
+        setTimeout(() => $('#voucher').scrollIntoView({ behavior: 'smooth', block: 'center' }), 350);
+      }
+      return;
+    }
+    const lang = e.target.closest('[data-lang]');
+    if (lang) return changeLang(lang.dataset.lang);
+    const th = e.target.closest('[data-theme-btn]');
+    if (th) return changeTheme(th.dataset.themeBtn);
+    if (e.target.closest('[data-act="edit"]')) return openEdit();
+  });
+
+  $('#btnLang').addEventListener('click', () => openSheet('#sheetLang'));
+  $('#btnTheme').addEventListener('click', () => changeTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+
+  $('#qsDiet').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    b.classList.toggle('on');
+    saveQuickDiet();
+  });
+  $('#qsDone').addEventListener('click', () => {
+    storeSet(qsKey(), '1');
+    $('#quickStart').classList.add('hidden');
+    toast(t('qs.allSet'), 'good');
   });
 
   // Tap a card -> show it on the map
@@ -649,31 +867,9 @@ function bindEvents() {
     setTimeout(() => m.openPopup(), 650);
   });
 
-  // Anything with data-open="stamps" etc. jumps to that tab
-  document.addEventListener('click', e => {
-    const b = e.target.closest('[data-open]');
-    if (!b) return;
-    switchView(b.dataset.open);
-    if (b.id === 'routeStrip' && state.tourist?.voucher?.status === 'UNLOCKED') {
-      setTimeout(() => $('#voucher').scrollIntoView({ behavior: 'smooth', block: 'center' }), 350);
-    }
-  });
-
-  $('#qsDiet').addEventListener('click', e => {
-    const b = e.target.closest('button');
-    if (!b) return;
-    b.classList.toggle('on');
-    saveQuickDiet();
-  });
-  $('#qsDone').addEventListener('click', () => {
-    storeSet(qsKey(), '1');
-    $('#quickStart').classList.add('hidden');
-    toast('All set. Enjoy Jeju 🍊', 'good');
-  });
-
   $('#btnLocate').addEventListener('click', async () => {
     const pos = await shareLocation();
-    if (pos) { $('#recWhy').textContent = 'sorted by what is near you'; loadRecs(); }
+    if (pos) { $('#recWhy').dataset.i18n = 'picks.near'; $('#recWhy').textContent = t('picks.near'); loadRecs(); }
   });
   $('#btnShareLoc').addEventListener('click', async () => {
     await shareLocation();
@@ -692,6 +888,8 @@ function bindEvents() {
   $('#btnEdit').addEventListener('click', openEdit);
   $('#btnSave').addEventListener('click', saveProfile);
   $('#dietPicks').addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.classList.toggle('on'); });
+  // Picking a nationality also sets the phone country code when the number is still empty
+  $('#inCountry').addEventListener('change', () => { if (!$('#inSos').value.trim() && $('#inCountry').value) $('#inDial').value = $('#inCountry').value; });
 
   $$('.sheet-backdrop').forEach(s => s.addEventListener('click', e => {
     if (e.target === s || e.target.closest('[data-close]')) closeSheets();
@@ -700,7 +898,7 @@ function bindEvents() {
   setupHold();
   $('#btnSosCancel').addEventListener('click', async () => {
     if (!activeSos) return;
-    try { await api('/api/sos/cancel', { alertId: activeSos.alertId, reason: 'Tourist is OK' }); renderSos(null); toast('SOS cancelled. Glad you are OK 💚', 'good'); }
+    try { await api('/api/sos/cancel', { alertId: activeSos.alertId, reason: 'Tourist is OK' }); renderSos(null); toast(t('sos.cancelled'), 'good'); }
     catch (e) { toast(e.message, 'warn'); }
   });
 
@@ -710,63 +908,30 @@ function bindEvents() {
       const r = await api('/api/redeem', { uid: state.uid, pin: $('#inPin').value });
       state.tourist = r.tourist;
       renderVoucher();
+      renderRouteStrip();
       closeSheets();
       chime('voucher');
-      toast('🎁 Voucher used. Enjoy Dongmun Market!', 'good');
+      toast(t('redeem.done'), 'good');
     } catch (e) { toast(e.message, 'warn'); }
   });
-
-  // demo tools
-  $('#btnUv').addEventListener('click', () => {
-    state.sunOnBead = !state.sunOnBead;
-    renderUv();
-    toast(state.sunOnBead ? '☀️ Bead turns tangerine in direct sun' : '🌥️ Bead back to pearl white in shade');
-  });
-  $('#btnSwitch').addEventListener('click', () => {
-    const next = prompt('Tag UID to open:', state.uid);
-    if (next && next.trim()) location.href = `/${encodeURIComponent(next.trim().toUpperCase())}`;
-  });
-  $('#btnReset').addEventListener('click', async () => {
-    if (!confirm('Reset stamps and voucher for this tag?')) return;
-    await api('/api/reset', { uid: state.uid }).catch(e => toast(e.message, 'warn'));
-    state.tourist = null;
-    await loadTourist({ celebrate: false });
-    loadRecs();
-  });
-  $('#demoTaps').addEventListener('click', async e => {
-    const b = e.target.closest('[data-tap]');
-    if (!b) return;
-    try {
-      const r = await api('/api/demo/tap', { uid: state.uid, station: b.dataset.tap });
-      if (r.duplicate) toast('Already stamped a moment ago ↺');
-      await loadTourist();
-    } catch (err) { toast(err.message, 'warn'); }
-  });
-}
-
-function renderDemo() {
-  const cfg = state.config;
-  if (!cfg.demoMode) return;
-  $('#demoTools').classList.remove('hidden');
-  $('#demoTaps').innerHTML = cfg.stations.map(s => `<button class="btn small ${s.kind === 'place' ? 'sea' : s.kind === 'activity' ? 'leaf' : ''}" data-tap="${s.id}">${cfg.kinds[s.kind].emoji} Tap ${esc(cfg.kinds[s.kind].label)}</button>`).join('');
-  $('#demoTags').innerHTML = ['04DBCE42CA2A81', 'FA1D2207', '2E720204', 'BEAD_001', 'BEAD_002']
-    .map(u => `<a class="chip ${u === state.uid ? 'tan' : ''}" href="/${u}">${u}</a>`).join('');
 }
 
 // ------------------------------------------------------------------ boot
 (async function init() {
+  applyI18n();
+  renderSettings();
   bindEvents();
   try {
     state.config = await api('/api/config');
-    renderDemo();
     await loadTourist({ celebrate: false });
     await loadRecs();
+    loadRoute();
     startSync();
     autoLocate();
     const start = location.hash.replace('#', '');
     if (['sos', 'stamps', 'me'].includes(start)) switchView(start);
   } catch (e) {
-    setLive(false, 'Offline');
-    toast(`Could not reach server: ${e.message}`, 'warn');
+    setLive(false, 'live.off');
+    toast(t('toast.server', { e: e.message }), 'warn');
   }
 })();

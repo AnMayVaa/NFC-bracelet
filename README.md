@@ -4,7 +4,7 @@ A smart basalt-bead wristband for Jeju visitors. Tap the band on a phone to open
 
 | Part | What it does |
 | :--- | :--- |
-| 📱 Tourist app (`/<UID>`) | **For You**: one-tap diet setup, stamp progress strip, map + AI picks (diet-safe, UV-aware, boosts local and quiet spots) · **Stamps**: route map, passport, 4,000 KRW Dongmun Market voucher · **SOS**: hold-to-send SOS, hotlines, Helping Map, help near you · **Me**: profile and demo tools |
+| 📱 Tourist app (`/<UID>`) | **For You**: one-tap diet setup, stamp progress strip, live weather card, map + AI picks (diet-safe, weather-aware, boosts local and quiet spots) · **Stamps**: road route map, passport, 4,000 KRW Dongmun Market voucher · **SOS**: hold-to-send SOS, Korean hotlines, your embassy or consulate, Helping Map, help near you · **Me**: any nationality (flag, name in any script), international emergency contact, language (English, 한국어, 中文, 日本語, ไทย) and dark mode |
 | 🏢 Admin desk (`/admin`) | Issue and register bands, write NFC tags, SOS queue (acknowledge, dispatch, resolve), station health, live log, evaluation metrics, **Demo control** (load a mock story, play each journey step for one band, clear SOS / stamps / guests, download a backup, delete everything) |
 | 📟 `firmware/admin` | ESP32 + PN532 desk reader: reads the tag, writes the tourist link, reports to the admin desk |
 | 🍊 `firmware/food` · 🗿 `firmware/place` · 🌊 `firmware/activity` | ESP32 stations (MFRC522 by default, PN532 optional): each tap gives a stamp of that kind |
@@ -23,7 +23,7 @@ npm test             # core rules: stamps, voucher, diet filter, SOS flow, migra
 - Admin desk: http://localhost:3000/admin, then press **Load full demo story** in Demo control
 - Live site: https://smart-nfc-bracelet.vercel.app (Vercel uses `api/index.js`)
 
-The tourist app has **Demo tools** under the *Me* tab to simulate taps without hardware.
+To simulate taps without hardware, use **Demo control** on the admin desk (`/admin`).
 
 ### Environment variables (all optional)
 
@@ -35,6 +35,8 @@ The tourist app has **Demo tools** under the *Me* tab to simulate taps without h
 | `ADMIN_PIN` | empty | If set, the admin desk asks for it |
 | `DEMO_MODE` | `true` | `false` hides demo tools, Demo control, simulated taps, wipe and restore |
 | `UV_OVERRIDE` | empty | Force a UV index (for demos); otherwise live UV from Open-Meteo |
+| `WEATHER_OVERRIDE` | empty | Force weather for a demo, e.g. `{"tempC":24,"rainChance":90,"precipMm":3}` |
+| `OSRM_URL` | OpenStreetMap foot router | Routing server for the road route on the Stamps map |
 | `SUPABASE_URL` | empty | Your Supabase project URL. With the key below, data lives in Supabase instead of `database.json` |
 | `SUPABASE_SERVICE_ROLE_KEY` | empty | Supabase secret key (server only, never in the browser or in git) |
 
@@ -59,7 +61,9 @@ lib/
   core.js            business rules (pure functions, unit tested)
   app.js             every API route, shared by both servers
   store.js           Supabase or JSON-file store, schema version + auto-migration
-  uv.js              live UV index for Jeju (Open-Meteo, cached 30 min)
+  weather.js         live Jeju weather: UV, temperature, rain, wind (Open-Meteo, cached 15 min)
+  route.js           Stamps route along real roads (saved file, OSRM, or straight lines)
+  data/countries.js  calling codes for every country (names come from the browser in any language)
   data/stations.js   stations, stamp kinds, reward rule, help points, hotlines
   data/catalog.js    places / food / activities the AI picks from
 server.js            local server: shared app + static files + WebSocket
@@ -70,20 +74,33 @@ supabase/schema.sql  tables + views to paste into the Supabase SQL Editor
 test/                node --test unit tests
 ```
 
+### Road route for the Stamps map
+
+The app asks `/api/route`, which uses `lib/data/route.json` if it exists, otherwise OpenStreetMap foot routing (OSRM), otherwise straight lines. To make the demo independent of the public router, run once on a computer with internet and commit the file:
+
+```
+npm run build-route
+```
+
+Run it again whenever a station moves.
+
 ### Adding things later
 
 - **New station** (for example a second food stall): add an entry to `lib/data/stations.js` with a new `id` and `kind`, copy `firmware/food` to a new folder, and change `STATION_ID`. The app, admin desk and voucher rule pick it up automatically.
 - **New stamp kind**: add it to `STATION_KINDS`. The voucher needs one stamp of every kind listed in `REWARD.requiredKinds`.
+- **New language**: add a block to `public/i18n.js` and an entry in `LANGS`. Missing keys fall back to English.
 - **New recommendation**: add an item to `lib/data/catalog.js`. Only add dietary tags that are verified; untagged food is hidden from anyone with a restriction.
 - **Database**: set the Supabase variables above. Another database can replace `lib/store.js` as long as it keeps the `refresh/load/save/replace` interface.
 
 ### How the AI picks work
 
-`S = N · D · (0.35·Proximity + 0.25·Rating + 0.20·UV fit + 0.20·Local & quiet + 0.10·Next stop)`
+`S = N · D · G · (0.35·Proximity + 0.25·Rating + 0.20·Weather fit + 0.20·Local & quiet + 0.10·Next stop)`
 
 - **N** removes places at stations the tourist already stamped.
 - **D** keeps food only if it carries every diet tag the tourist declared (vegan counts as vegetarian). Unknown allergies fail closed.
-- Proximity uses the phone GPS if shared, else the last station tapped. UV fit prefers lava caves and museums when UV ≥ 8.
+- **G** is the bad-weather gate: in rain or strong wind, fully exposed spots drop (×0.6).
+- **Weather fit** = half UV fit, half live rain / wind / heat / cold fit, from Open-Meteo (`lib/weather.js`, no key, cached 15 min). Rain puts caves, museums and markets first; each card says why ("Dry inside, good for rain", "Out of the wind", "Cool spot for a hot day").
+- Proximity uses the phone GPS if shared, else the last station tapped.
 
 ### API
 

@@ -1,0 +1,14 @@
+{
+  "name": "Jeju wish-band",
+  "short_name": "Wish-band",
+  "description": "Travel + Connect + Protect on Jeju island",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FBF5E9",
+  "theme_color": "#7CC3E0",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
