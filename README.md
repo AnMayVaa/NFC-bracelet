@@ -5,7 +5,7 @@ A smart basalt-bead wristband for Jeju visitors. Tap the band on a phone to open
 | Part | What it does |
 | :--- | :--- |
 | 📱 Tourist app (`/<UID>`) | **For You**: one-tap diet setup, stamp progress strip, map + AI picks (diet-safe, UV-aware, boosts local and quiet spots) · **SOS**: hold-to-send SOS, hotlines, Helping Map, help near you · **Stamps**: route map, passport, 4,000 KRW Dongmun Market voucher · **Me**: profile and demo tools |
-| 🏢 Admin desk (`/admin`) | Issue and register bands, write NFC tags, SOS queue (acknowledge, dispatch, resolve), station health, live log, evaluation metrics |
+| 🏢 Admin desk (`/admin`) | Issue and register bands, write NFC tags, SOS queue (acknowledge, dispatch, resolve), station health, live log, evaluation metrics, **Demo control** (load a mock story, play each journey step for one band, clear SOS / stamps / guests, download a backup, delete everything) |
 | 📟 `firmware/admin` | ESP32 + PN532 desk reader: reads the tag, writes the tourist link, reports to the admin desk |
 | 🍊 `firmware/food` · 🗿 `firmware/place` · 🌊 `firmware/activity` | ESP32 stations (MFRC522 by default, PN532 optional): each tap gives a stamp of that kind |
 
@@ -20,7 +20,7 @@ npm test             # core rules: stamps, voucher, diet filter, SOS flow, migra
 ```
 
 - Tourist app: http://localhost:3000/BEAD_001 (any tag UID works as the path)
-- Admin desk: http://localhost:3000/admin, then press **Load demo tags**
+- Admin desk: http://localhost:3000/admin, then press **Load full demo story** in Demo control
 - Live site: https://smart-nfc-bracelet.vercel.app (Vercel uses `api/index.js`)
 
 The tourist app has **Demo tools** under the *Me* tab to simulate taps without hardware.
@@ -33,7 +33,7 @@ The tourist app has **Demo tools** under the *Me* tab to simulate taps without h
 | `MERCHANT_PIN` | `4000` | PIN the market vendor types to redeem a voucher |
 | `STATION_KEY` | empty | If set, ESP32s must send it as `X-Station-Key` (put the same value in `secrets.h`) |
 | `ADMIN_PIN` | empty | If set, the admin desk asks for it |
-| `DEMO_MODE` | `true` | `false` hides demo tools, simulated taps, wipe and restore |
+| `DEMO_MODE` | `true` | `false` hides demo tools, Demo control, simulated taps, wipe and restore |
 | `UV_OVERRIDE` | empty | Force a UV index (for demos); otherwise live UV from Open-Meteo |
 | `SUPABASE_URL` | empty | Your Supabase project URL. With the key below, data lives in Supabase instead of `database.json` |
 | `SUPABASE_SERVICE_ROLE_KEY` | empty | Supabase secret key (server only, never in the browser or in git) |
@@ -46,7 +46,7 @@ Without the two Supabase variables the app keeps everything in `database.json` (
 2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql), press **Run**. This creates the `tourists` and `sos_alerts` tables plus read-only views `checkins`, `location_log` and `recommendation_events`.
 3. **Project Settings → API**: copy the **Project URL** and the **service_role** (secret) key.
 4. **Vercel → smart-nfc-bracelet → Settings → Environment Variables**: add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then redeploy. For local runs put them in your shell before `npm start`.
-5. Open `/api/health`: it shows `"storage": "supabase"` and `"database": { "ok": true, "tourists": N }` when it is connected, or the Supabase error message if not. The admin desk "Load demo tags" button fills the table with demo data.
+5. Open `/api/health`: it shows `"storage": "supabase"` and `"database": { "ok": true, "tourists": N }` when it is connected, or the Supabase error message if not. On /admin, **Demo control → Load full demo story** fills the tables with 11 demo wish-bands and 3 SOS alerts; the header chip turns green ("Supabase").
 
 Row Level Security is on with no policies, so the public anon key can read nothing; only the server's secret key can. Never commit the secret key (the repo is public).
 

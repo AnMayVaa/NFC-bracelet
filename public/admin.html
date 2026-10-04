@@ -20,13 +20,51 @@
     </div>
     <div class="sp"></div>
     <span class="live" id="live" style="background:var(--sand)"><span class="dot"></span><span id="liveText">Connecting…</span></span>
-    <button class="btn ghost small" id="btnResetStamps" title="Keep profiles, clear stamps and vouchers">↺ Reset all stamps</button>
-    <button class="btn leaf small demo-only" id="btnRestore">🧪 Load demo tags</button>
-    <button class="btn sos small demo-only" id="btnWipe">🗑️ Delete all</button>
+    <span class="chip" id="storageChip" title="Where data is saved">…</span>
   </header>
 
   <!-- Evaluation indicators -->
   <section class="metrics" id="metrics"></section>
+
+  <!-- Demo control: mock data, one-click journey steps, clean-up -->
+  <section class="card demo-ctl demo-only" id="demoCtl">
+    <h3>🧪 Demo control <span class="ko">시연 도구</span></h3>
+    <div class="demo-grid">
+      <div class="demo-col">
+        <div class="lbl">1 · Load mock data</div>
+        <button class="btn leaf small" data-seed="replace" title="Wipe, then load 11 wish-bands at every stage of the journey">📖 Load full demo story</button>
+        <button class="btn ghost small" data-seed="merge" title="Add or refresh the demo wish-bands, keep everything else">➕ Add demo bands, keep mine</button>
+        <p class="hint">Story: fresh band, 1 and 2 stamps, voucher ready, voucher used, active SOS, rescue on the way, resolved SOS.</p>
+      </div>
+      <div class="demo-col wide">
+        <div class="lbl">2 · Play the journey for one wish-band</div>
+        <div class="sim-row">
+          <select class="input" id="simUid"></select>
+          <button class="btn ghost small" id="simOpen" title="Open this band's phone view">📱 Phone view</button>
+        </div>
+        <div class="sim-btns">
+          <button class="btn small" data-sim="pick">✨ Opens AI pick</button>
+          <button class="btn small sea" data-sim="tap-place">🗿 Place tap</button>
+          <button class="btn small" data-sim="tap-food">🍊 Food tap</button>
+          <button class="btn small leaf" data-sim="tap-activity">🌊 Activity tap</button>
+          <button class="btn small" data-sim="complete">⭐ Finish route</button>
+          <button class="btn small" data-sim="redeem">🎁 Redeem voucher</button>
+          <button class="btn small sea" data-sim="gps">📍 Move GPS</button>
+          <button class="btn small sos" data-sim="sos">🚨 Send SOS</button>
+          <button class="btn small ghost" data-sim="reset">↺ Reset band</button>
+        </div>
+        <p class="hint" id="simNote">Pick a wish-band, then press the steps in order.</p>
+      </div>
+      <div class="demo-col">
+        <div class="lbl">3 · Clean up</div>
+        <button class="btn ghost small" data-clear="sos">🧹 Clear SOS alerts</button>
+        <button class="btn ghost small" id="btnResetStamps" title="Keep profiles, clear stamps and vouchers">↺ Reset all stamps</button>
+        <button class="btn ghost small" data-clear="guests" title="Bands created by opening a random link, with no taps">🧽 Remove empty guests</button>
+        <button class="btn ghost small" id="btnExport">⬇️ Download backup</button>
+        <button class="btn sos small" data-clear="all">🗑️ Delete everything</button>
+      </div>
+    </div>
+  </section>
 
   <div class="grid">
     <!-- left column -->

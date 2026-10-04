@@ -129,6 +129,38 @@ function renderRows(tourists) {
   flashed.clear();
 }
 
+const storageLabel = () => status?.storage === 'supabase' ? ' in Supabase' : '';
+
+function renderStorage(kind) {
+  const chip = $('#storageChip');
+  chip.textContent = kind === 'supabase' ? '🟢 Supabase' : '📁 Local file';
+  chip.className = `chip ${kind === 'supabase' ? 'ok' : ''}`;
+  chip.title = kind === 'supabase' ? 'Data is saved in Supabase' : 'Data is saved in database.json (resets on Vercel)';
+}
+
+// Keep the band picker in sync without losing the current choice.
+function renderSimPicker(tourists) {
+  const sel = $('#simUid');
+  const current = sel.value;
+  const sig = tourists.map(t => t.uid + t.name).join('|');
+  if (sel.dataset.sig !== sig) {
+    sel.dataset.sig = sig;
+    sel.innerHTML = tourists.length
+      ? [...tourists].sort((a, b) => a.uid.localeCompare(b.uid)).map(t => `<option value="${esc(t.uid)}">${esc(t.uid)} · ${esc(t.name)}</option>`).join('')
+      : '<option value="">No wish-bands yet</option>';
+    if (tourists.some(t => t.uid === current)) sel.value = current;
+  }
+  updateSimNote();
+}
+
+function updateSimNote() {
+  const t = status?.tourists.find(x => x.uid === $('#simUid').value);
+  if (!t) return;
+  const got = config.stations.filter(s => t.stamps?.[s.id]).length;
+  const story = status.demoNotes?.[t.uid];
+  $('#simNote').textContent = `${story ? story + ' · ' : ''}${got}/${config.stations.length} stamps · voucher ${String(t.voucher?.status || 'LOCKED').toLowerCase()}`;
+}
+
 function renderLog(events) {
   $('#log').innerHTML = events.map(e =>
     `<div><span class="t">${new Date(e.timestamp).toLocaleTimeString()}</span><span>${esc(e.text)}</span></div>`).join('');
@@ -165,6 +197,8 @@ async function refresh() {
     renderStations(status.stations);
     renderRows(status.tourists);
     renderLog(status.events);
+    renderStorage(status.storage);
+    if (config?.demoMode) renderSimPicker(status.tourists);
     renderScan(status.lastScan, status.pendingWrite);
     $('#live').classList.add('on');
     $('#liveText').textContent = 'Live';
@@ -262,11 +296,46 @@ function bind() {
   $('#btnResetStamps').addEventListener('click', async () => {
     if (confirm('Reset every stamp and voucher? Profiles stay.')) { await api('/api/admin/reset-stamps', {}); refresh(); }
   });
-  $('#btnRestore').addEventListener('click', async () => {
-    if (confirm('Replace everything with the demo wish-bands?')) { await api('/api/admin/restore-defaults', {}); refresh(); }
+  // ---- demo control
+  $('#demoCtl').addEventListener('click', async e => {
+    const seed = e.target.closest('[data-seed]');
+    const sim = e.target.closest('[data-sim]');
+    const clear = e.target.closest('[data-clear]');
+    try {
+      if (seed) {
+        if (seed.dataset.seed === 'replace' && !confirm(`Delete everything${storageLabel()} and load the demo story?`)) return;
+        const r = await api('/api/admin/seed', { mode: seed.dataset.seed });
+        toast(`🧪 Loaded ${r.tourists} wish-bands and ${r.sosAlerts} SOS alerts`, 'good');
+      } else if (sim) {
+        const uid = $('#simUid').value;
+        if (!uid) return toast('Load demo data or pick a wish-band first', 'warn');
+        const r = await api('/api/admin/simulate', { uid, action: sim.dataset.sim });
+        toast(r.message, 'good');
+        flashed.add(uid);
+      } else if (clear) {
+        const what = clear.dataset.clear;
+        if (what === 'all') {
+          const typed = prompt(`This deletes every wish-band and SOS alert${storageLabel()}. It cannot be undone.\n\nType DELETE to confirm:`);
+          if (typed !== 'DELETE') return toast('Nothing deleted');
+        } else if (!confirm(what === 'sos' ? 'Remove all SOS alerts?' : 'Remove guest bands that were never set up and have no taps?')) return;
+        const r = await api('/api/admin/clear', { what });
+        toast(`🧹 Removed ${r.count}`, 'good');
+      } else return;
+      refresh();
+    } catch (err) { toast(err.message, 'warn'); }
   });
-  $('#btnWipe').addEventListener('click', async () => {
-    if (confirm('Delete ALL wish-bands and SOS alerts?')) { await api('/api/admin/delete-all', {}); refresh(); }
+  $('#simUid').addEventListener('change', updateSimNote);
+  $('#simOpen').addEventListener('click', () => { const uid = $('#simUid').value; if (uid) window.open(tagUrl(uid), '_blank'); });
+  $('#btnExport').addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/admin/export', { headers: { 'X-Admin-Pin': adminPin } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(await res.blob());
+      a.download = `wish-band-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (err) { toast(`Backup failed: ${err.message}`, 'warn'); }
   });
 
   $('#btnCloseQr').addEventListener('click', () => $('#qrModal').classList.remove('open'));

@@ -44,3 +44,31 @@ test('health reports a failing database with 503', async () => {
     process.env = saved;
   }
 });
+
+test('demo control: seed story, play a journey, clear', async () => {
+  const s = await start();
+  const base = `http://127.0.0.1:${s.address().port}`;
+  const post = (p, body) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
+  try {
+    const seeded = await post('/api/admin/seed', { mode: 'replace' });
+    assert.strictEqual(seeded.tourists, 11);
+    assert.strictEqual(seeded.sosAlerts, 3);
+    let st = await (await fetch(`${base}/api/admin/status`)).json();
+    assert.strictEqual(st.tourists.find(t => t.uid === 'BEAD_004').voucher.status, 'UNLOCKED');
+    assert.ok(st.metrics.conversionRate > 0);
+
+    assert.ok((await post('/api/admin/simulate', { uid: 'BEAD_001', action: 'complete' })).success);
+    assert.ok((await post('/api/admin/simulate', { uid: 'BEAD_001', action: 'redeem' })).success);
+    assert.ok((await post('/api/admin/simulate', { uid: 'BEAD_001', action: 'sos' })).success);
+    st = await (await fetch(`${base}/api/admin/status`)).json();
+    assert.strictEqual(st.tourists.find(t => t.uid === 'BEAD_001').voucher.status, 'REDEEMED');
+    assert.strictEqual(st.metrics.sosTotal, 4);
+
+    assert.strictEqual((await post('/api/admin/clear', { what: 'sos' })).count, 4);
+    await post('/api/admin/clear', { what: 'all' });
+    st = await (await fetch(`${base}/api/admin/status`)).json();
+    assert.strictEqual(st.tourists.length, 0);
+  } finally {
+    s.close();
+  }
+});
