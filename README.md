@@ -46,7 +46,7 @@ Without the two Supabase variables the app keeps everything in `database.json` (
 2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql), press **Run**. This creates the `tourists` and `sos_alerts` tables plus read-only views `checkins`, `location_log` and `recommendation_events`.
 3. **Project Settings → API**: copy the **Project URL** and the **service_role** (secret) key.
 4. **Vercel → smart-nfc-bracelet → Settings → Environment Variables**: add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then redeploy. For local runs put them in your shell before `npm start`.
-5. Open `/api/health`: it shows `"storage": "supabase"` when it is connected. The admin desk "Load demo tags" button fills the table with demo data.
+5. Open `/api/health`: it shows `"storage": "supabase"` and `"database": { "ok": true, "tourists": N }` when it is connected, or the Supabase error message if not. The admin desk "Load demo tags" button fills the table with demo data.
 
 Row Level Security is on with no policies, so the public anon key can read nothing; only the server's secret key can. Never commit the secret key (the repo is public).
 

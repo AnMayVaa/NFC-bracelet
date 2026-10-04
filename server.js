@@ -32,3 +32,6 @@ server.listen(PORT, () => {
   console.log(`📱 Tourist app: http://localhost:${PORT}/BEAD_001`);
   console.log(`🏢 Admin desk:  http://localhost:${PORT}/admin\n`);
 });
+
+// Lets Vercel's Express preset use this file directly if it picks it as the entry.
+module.exports = server;
