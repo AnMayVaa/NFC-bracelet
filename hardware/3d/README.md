@@ -9,6 +9,7 @@ Printable 3D enclosures for the two Jeju wish-band devices: the **admin desk uni
 | Folder | Contents |
 |---|---|
 | `stl/` | Print-ready STL files, already placed the right way up for printing. `scene.json` lists every size and volume. |
+| `glb/` | Coloured, assembled models (`admin-desk-unit.glb`, `checkin-station.glb`) that open in phone and desktop 3D viewers, such as Windows 3D Viewer, macOS Quick Look or gltf-viewer.donmccurdy.com. |
 | `drawings/` | `jeju-wish-band-device-drawings.pdf` has two A3 sheets at 1:1: sheet 1 is the admin desk unit and sheet 2 is the check-in station. Print at 100 % and the sizes are true. PNG copies of each sheet are included. |
 | `renders/` | The overview poster (PNG + PDF), both devices together, and each device whole and exploded. |
 | `source/` | Parametric source. `models.py` builds the STLs and `drawing.py` makes the drawings. `render.html`, `render_shots.mjs` and `compose_overview.py` make the renders. |
