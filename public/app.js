@@ -989,7 +989,8 @@ async function saveProfile() {
 // ------------------------------------------------------------------ language + theme
 function renderSettings() {
   $('#langShort').textContent = LANG.toUpperCase();
-  $('#langSeg').innerHTML = LANGS.map(l => `<button data-lang="${l.code}" class="${l.code === LANG ? 'on' : ''}">${esc(l.label)}</button>`).join('');
+  // 11 languages are too many for a segmented control: show the current one, tap to open the list
+  $('#langSeg').innerHTML = `<button class="on" data-open-lang>🌐 ${esc(LANGS.find(l => l.code === LANG)?.label || 'English')} ›</button>`;
   $('#langList').innerHTML = LANGS.map(l => `<button data-lang="${l.code}" class="${l.code === LANG ? 'on' : ''}">${esc(l.label)}</button>`).join('');
   const theme = document.documentElement.dataset.theme;
   $$('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.themeBtn === theme));
@@ -1073,6 +1074,7 @@ function bindEvents() {
   });
 
   $('#btnLang').addEventListener('click', () => openSheet('#sheetLang'));
+  $('#langSeg').addEventListener('click', e => { if (e.target.closest('[data-open-lang]')) openSheet('#sheetLang'); });
   $('#btnTheme').addEventListener('click', () => changeTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
 
   // First-use questions

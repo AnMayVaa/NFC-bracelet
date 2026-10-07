@@ -108,7 +108,7 @@ Tapping a card opens its details: photo, address, why it was picked, **Good to k
 
 - **New station** (for example a second food stall): add an entry to `lib/data/stations.js` with a new `id` and `kind`, copy `firmware/food` to a new folder, and change `STATION_ID`. The app, admin desk and voucher rule pick it up automatically.
 - **New stamp kind**: add it to `STATION_KINDS`. The voucher needs one stamp of every kind listed in `REWARD.requiredKinds`.
-- **New language**: add a block to `public/i18n.js` and an entry in `LANGS`. Missing keys fall back to English.
+- **New language**: add a block to `public/i18n.js` and an entry in `LANGS`. Missing keys fall back to English. The app ships English, Korean, Chinese, Japanese, Thai, French, German, Spanish, Italian, Portuguese and Russian; the last six are machine translations that a native speaker should check.
 - **New recommendation**: add an item to `lib/data/catalog.js` (with `interests`, `effort`, `wiki` titles for the photo, and `source`, `address`, `good`, `check` in `EXTRA`). Only add dietary tags that are verified; untagged food is hidden from anyone with a restriction.
 - **Database**: set the Supabase variables above. Another database can replace `lib/store.js` as long as it keeps the `refresh/load/save/replace` interface.
 
