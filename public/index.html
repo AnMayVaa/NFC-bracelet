@@ -50,13 +50,6 @@
 
     <!-- ============ For You ============ -->
     <section class="view on" id="view-home">
-      <div class="card quick-start hidden" id="quickStart">
-        <h3 data-i18n="qs.title">👋 Any food needs?</h3>
-        <p class="muted small-p" data-i18n="qs.sub">Tap all that apply. Picks update right away.</p>
-        <div class="pick-row" id="qsDiet"></div>
-        <button class="btn block" id="qsDone" style="margin-top:12px" data-i18n="qs.none">No restrictions, show me Jeju</button>
-      </div>
-
       <button class="route-strip" id="routeStrip" data-open="stamps">
         <span class="beads" id="routeBeads"></span>
         <span class="txt"><b id="routeTitle">Wish Route</b><small id="routeSub"></small></span>
@@ -92,7 +85,7 @@
 
       <div class="list-head">
         <b data-i18n="picks.title">Picked for you</b>
-        <span class="muted" id="recWhy" data-i18n="picks.why">diet · stamps · live weather</span>
+        <span class="muted" id="recWhy" data-i18n="picks.why">interests · health · live weather</span>
       </div>
       <div class="rec-list" id="recList">
         <div class="rec skeleton"></div><div class="rec skeleton"></div><div class="rec skeleton"></div>
@@ -196,6 +189,15 @@
         </div>
       </div>
 
+      <div class="card info-tile wide">
+        <div class="lbl" data-i18n="me.interests">Interested in</div>
+        <div class="chips" id="meInterests"></div>
+      </div>
+      <div class="card info-tile wide">
+        <div class="lbl" data-i18n="me.health">Health</div>
+        <div class="chips" id="meHealth"></div>
+      </div>
+
       <div class="card contact-card" id="meContact"></div>
 
       <div class="card settings">
@@ -228,6 +230,70 @@
   </nav>
 </div>
 
+<!-- ============ First use: 3 quick questions ============ -->
+<div class="onboard hidden" id="onboard" role="dialog" aria-modal="true" aria-labelledby="obTitle">
+  <div class="ob-inner">
+    <div class="ob-top">
+      <img src="/logo.svg" alt="" width="30" height="30">
+      <div class="ob-dots" id="obDots"><i class="on"></i><i></i><i></i></div>
+      <button class="pill-btn" id="obLang">🌐 <span id="obLangShort">EN</span></button>
+    </div>
+
+    <!-- Step 1: interests -->
+    <section class="ob-step on" data-step="1">
+      <div class="ob-kicker" data-i18n="ob.step1">Step 1 of 3</div>
+      <h2 id="obTitle" data-i18n="ob.interestsTitle">What are you into?</h2>
+      <p class="muted" data-i18n="ob.interestsSub">Pick one or more. Your AI picks start from these.</p>
+      <div class="ob-grid" id="obInterests"></div>
+    </section>
+
+    <!-- Step 2: health -->
+    <section class="ob-step" data-step="2">
+      <div class="ob-kicker" data-i18n="ob.step2">Step 2 of 3</div>
+      <h2 data-i18n="ob.healthTitle">Your health</h2>
+      <p class="muted" data-i18n="ob.healthSub">Keeps food picks safe and helps rescuers if you send an SOS.</p>
+      <div class="field"><label data-i18n="ob.mobility">Getting around</label><div class="ob-mob" id="obMobility"></div></div>
+      <div class="field"><label data-i18n="edit.diet">Diet</label><div class="pick-row" id="obDiet"></div></div>
+      <div class="field"><label data-i18n="edit.dietOther">Other allergy (optional)</label><input id="obDietOther" maxlength="60" data-i18n-ph="edit.dietOtherPh"></div>
+      <div class="field"><label data-i18n="ob.medical">Medical notes for rescuers (optional)</label><input id="obMedical" maxlength="200" data-i18n-ph="ob.medicalPh"></div>
+    </section>
+
+    <!-- Step 3: emergency contact -->
+    <section class="ob-step" data-step="3">
+      <div class="ob-kicker" data-i18n="ob.step3">Step 3 of 3</div>
+      <h2 data-i18n="ob.contactTitle">Emergency contact</h2>
+      <p class="muted" data-i18n="ob.contactSub">Who should rescuers call if something happens?</p>
+      <div class="field"><label data-i18n="edit.name">Your name</label><input id="obName" maxlength="60" data-i18n-ph="edit.namePh" autocomplete="name"></div>
+      <div class="field"><label data-i18n="edit.country">Nationality</label><select id="obCountry"></select></div>
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:10px">
+        <div class="field"><label data-i18n="edit.contactName">Contact name</label><input id="obSosName" maxlength="60" data-i18n-ph="edit.contactNamePh"></div>
+        <div class="field"><label data-i18n="edit.relation">Relationship</label>
+          <select id="obSosRel">
+            <option value="Family" data-i18n="rel.family">Family</option>
+            <option value="Partner" data-i18n="rel.partner">Partner</option>
+            <option value="Friend" data-i18n="rel.friend">Friend</option>
+            <option value="Travel buddy" data-i18n="rel.buddy">Travel buddy</option>
+            <option value="Other" data-i18n="rel.other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label data-i18n="edit.phone">Phone number</label>
+        <div class="phone-row">
+          <select id="obDial"></select>
+          <input id="obSos" type="tel" inputmode="tel" maxlength="20" placeholder="812 345 678" autocomplete="tel-national">
+        </div>
+      </div>
+      <p class="muted small-p" data-i18n="ob.later">You can change all of this later in Me.</p>
+    </section>
+
+    <div class="ob-err" id="obErr" role="alert"></div>
+    <div class="ob-acts">
+      <button class="btn ghost" id="obBack" data-i18n="ob.back">Back</button>
+      <button class="btn" id="obNext" data-i18n="ob.next">Next</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ Sheets ============ -->
 <div class="sheet-backdrop" id="sheetEdit">
   <div class="sheet">
@@ -237,8 +303,17 @@
     <div class="field"><label data-i18n="edit.name">Name</label><input id="inName" maxlength="60" data-i18n-ph="edit.namePh" autocomplete="name"></div>
     <div class="field"><label data-i18n="edit.country">Nationality</label><select id="inCountry"></select></div>
     <div class="field"><label data-i18n="edit.lang">Language you speak</label><select id="inLang"></select></div>
+    <div class="field"><label data-i18n="edit.interests">Interested in</label><div class="pick-row" id="interestPicks"></div></div>
     <div class="field"><label data-i18n="edit.diet">Diet</label><div class="pick-row" id="dietPicks"></div></div>
     <div class="field"><label data-i18n="edit.dietOther">Other allergy</label><input id="inDietOther" maxlength="60" data-i18n-ph="edit.dietOtherPh"></div>
+    <div class="field"><label data-i18n="ob.mobility">Getting around</label>
+      <select id="inMobility">
+        <option value="none" data-i18n="mob.none">Walk easily</option>
+        <option value="limited" data-i18n="mob.limited">Short walks only</option>
+        <option value="wheelchair" data-i18n="mob.wheelchair">Wheelchair or stroller</option>
+      </select>
+    </div>
+    <div class="field"><label data-i18n="ob.medical">Medical notes for rescuers (optional)</label><input id="inMedical" maxlength="200" data-i18n-ph="ob.medicalPh"></div>
 
     <div class="sheet-sub" data-i18n="edit.contact">Emergency contact</div>
     <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:10px">

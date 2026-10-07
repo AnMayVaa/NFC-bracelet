@@ -405,9 +405,6 @@ tr.flash td { animation: flash 1.2s; }
 /* ---------------- v3: fewer steps ---------------- */
 .tabs-cats { display: grid; grid-template-columns: repeat(4, 1fr); overflow: visible; }
 .tabs-cats button { padding-left: 4px; padding-right: 4px; white-space: nowrap; text-align: center; }
-.quick-start { border: 2px solid var(--tan); margin-bottom: 14px; animation: pop .35s ease; }
-.quick-start h3 { margin-bottom: 2px; }
-.quick-start .pick-row { margin-top: 10px; }
 .route-strip {
   width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
   background: var(--field); border: 2px solid var(--line); border-radius: 18px;
@@ -500,6 +497,49 @@ tr.flash td { animation: flash 1.2s; }
 @media (max-width: 360px) { .me-grid { grid-template-columns: 1fr; } }
 
 /* ---------------- dark mode ---------------- */
+/* ---------- For You photos + links ---------- */
+.rec .ph { position: relative; width: 84px; height: 84px; border-radius: 18px; flex-shrink: 0; background: var(--sand); }
+.rec .ph img { width: 100%; height: 100%; object-fit: cover; border-radius: 18px; display: block; }
+.rec.big { flex-wrap: wrap; }
+.rec.big .ph { width: 100%; height: 170px; }
+.rec.big .body { flex-basis: calc(100% - 80px); }
+.rec-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rec-links .lnk { font-size: .78rem; font-weight: 800; text-decoration: none; padding: 4px 10px; border-radius: 999px; background: var(--sea-s); color: var(--sea-d); }
+.rec .credit { display: block; margin-top: 6px; font-size: .66rem; color: var(--muted); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.info-tile.wide { margin-top: 12px; }
+.chip.warn-chip { background: var(--sos-s); color: #A83D33; }
+
+/* ---------- first use ---------- */
+body.no-scroll { overflow: hidden; }
+.onboard { position: fixed; inset: 0; z-index: 850; background: var(--cream); overflow-y: auto; }
+.ob-inner { max-width: 480px; margin: 0 auto; padding: 16px 20px calc(24px + env(safe-area-inset-bottom)); min-height: 100%; display: flex; flex-direction: column; }
+.ob-top { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.ob-dots { flex: 1; display: flex; gap: 6px; justify-content: center; }
+.ob-dots i { width: 34px; height: 6px; border-radius: 9px; background: var(--bas-s); transition: background .25s; }
+.ob-dots i.on { background: var(--tan); }
+.ob-step { display: none; animation: pop-in .3s ease; }
+.ob-step.on { display: block; }
+.ob-step h2 { font-size: 1.55rem; font-weight: 900; line-height: 1.2; margin: 2px 0 6px; }
+.ob-step > p { margin-bottom: 18px; }
+.ob-kicker { font-size: .74rem; font-weight: 900; text-transform: uppercase; letter-spacing: .6px; color: var(--tan-d); }
+.ob-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ob-grid button, .ob-mob button {
+  background: var(--paper); border: 2px solid var(--line); border-radius: 18px; padding: 14px 12px; text-align: left;
+  display: flex; flex-direction: column; gap: 2px; box-shadow: var(--shadow-sm); transition: border-color .15s, transform .1s;
+}
+.ob-grid button:active, .ob-mob button:active { transform: scale(.97); }
+.ob-grid button.on, .ob-mob button.on { border-color: var(--tan); background: var(--tan-s); }
+.ob-grid .ob-ic { font-size: 1.8rem; }
+.ob-grid b { font-size: 1rem; }
+.ob-grid small { font-size: .76rem; color: var(--muted); font-weight: 700; }
+.ob-mob { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ob-mob button { align-items: center; text-align: center; font-weight: 800; font-size: .82rem; padding: 12px 6px; }
+.ob-mob .ob-ic { font-size: 1.5rem; }
+.ob-err { min-height: 1.4em; color: var(--sos); font-weight: 800; font-size: .86rem; margin-top: 10px; }
+.ob-acts { display: flex; gap: 10px; margin-top: auto; padding-top: 12px; }
+.ob-acts #obBack { flex: 1; } .ob-acts #obNext { flex: 2; }
+:root[data-theme="dark"] .ob-grid button.on, :root[data-theme="dark"] .ob-mob button.on { color: var(--bas); }
+
 :root[data-theme="dark"] {
   --cream: #14171B;
   --paper: #1E2227;

@@ -113,6 +113,9 @@ const state = {
 };
 
 const DIET_TAGS = ['Halal', 'Vegan', 'Vegetarian', 'No Shellfish', 'Gluten-Free'];
+const INTEREST_ICONS = { nature: '🌋', food: '🍊', culture: '🗿', activity: '🤿', market: '🛍️', cafe: '☕' };
+const MOBILITY = [{ v: 'none', i: '🚶' }, { v: 'limited', i: '🦯' }, { v: 'wheelchair', i: '♿' }];
+const interestLabel = k => `${INTEREST_ICONS[k] || '✨'} ${t(`int.${k}`)}`;
 const HELP_ICONS = { hospital: '🏥', police: '👮', info: 'ℹ️' };
 const CAT_COLORS = { place: '#2E86AB', food: '#F28C38', activity: '#5E9A62' };
 const JEJU_CENTER = [33.38, 126.55];
@@ -293,6 +296,14 @@ function renderProfile() {
     ? diets.map(d => `<span class="chip tan">${esc(dietLabel(d))}</span>`).join('')
     : `<span class="chip leaf">${esc(t('me.noDiet'))}</span>`;
 
+  const ints = tr.interests || [];
+  $('#meInterests').innerHTML = ints.length
+    ? ints.map(k => `<span class="chip sea">${esc(interestLabel(k))}</span>`).join('')
+    : `<button class="btn ghost small" data-act="edit">${esc(t('me.addInterests'))}</button>`;
+  const mob = MOBILITY.find(m => m.v === (tr.mobility || 'none'));
+  $('#meHealth').innerHTML = `<span class="chip ${mob.v === 'none' ? 'leaf' : 'tan'}">${mob.i} ${esc(t(`mob.${mob.v}`))}</span>`
+    + (tr.medicalNotes ? `<span class="chip warn-chip">🩺 ${esc(tr.medicalNotes)}</span>` : `<span class="chip">🩺 ${esc(t('me.noMedical'))}</span>`);
+
   // Emergency contact card
   const phone = tr.emergencyContact;
   $('#meContact').innerHTML = phone
@@ -462,17 +473,34 @@ function renderRecs(data) {
     list.innerHTML = `<div class="empty"><div class="big">🌿</div>${esc(t('picks.empty'))}</div>`;
     return;
   }
-  list.innerHTML = state.recs.slice(0, 8).map((r, i) => `
-    <div class="rec ${i === 0 ? 'top' : ''}" data-id="${esc(r.id)}" tabindex="0">
-      <div class="ico ${r.category}">${r.emoji || '📍'}<span class="rank">${i + 1}</span></div>
+  list.innerHTML = state.recs.slice(0, 8).map((r, i) => recCard(r, i)).join('');
+}
+
+// One For You card: real photo (credited) or the emoji, plus website / map / about links.
+function recCard(r, i) {
+  const chipTone = r.category === 'food' ? 'tan' : r.category === 'place' ? 'sea' : 'leaf';
+  const ph = r.photo;
+  const pic = ph
+    ? `<div class="ph ${i === 0 ? 'wide' : ''}"><img src="${esc(ph.src)}" alt="${esc(r.title)}" loading="lazy" data-emoji="${esc(r.emoji || '📍')}"><span class="rank">${i + 1}</span></div>`
+    : `<div class="ico ${r.category}">${r.emoji || '📍'}<span class="rank">${i + 1}</span></div>`;
+  const link = r.link || { kind: 'map', url: mapSearchUrl(`${r.title} Jeju`) };
+  const about = r.info || ph?.article;
+  return `
+    <div class="rec ${i === 0 ? 'top' : ''} ${ph ? 'has-ph' : ''} ${ph && i === 0 ? 'big' : ''}" data-id="${esc(r.id)}" tabindex="0">
+      ${pic}
       <div class="body">
         ${i === 0 ? `<div class="badge-top">${esc(t('picks.best'))}</div>` : ''}
         <div class="title">${esc(r.title)} <span class="ko">${esc(r.title_ko || '')}</span></div>
         <div class="note">${esc(r.note || '')}</div>
-        <div class="reasons">${(r.reasons || []).slice(0, i === 0 ? 2 : 1).map(x => `<span class="chip ${r.category === 'food' ? 'tan' : r.category === 'place' ? 'sea' : 'leaf'}">${esc(translateReason(x))}</span>`).join('')}</div>
+        <div class="reasons">${(r.reasons || []).slice(0, i === 0 ? 3 : 2).map(x => `<span class="chip ${chipTone}">${esc(translateReason(x))}</span>`).join('')}</div>
+        <div class="rec-links">
+          <a class="lnk" target="_blank" rel="noopener" href="${esc(link.url)}" data-open-link="${esc(r.id)}">${link.kind === 'website' ? '🌐 ' + esc(t('picks.website')) : '🗺️ ' + esc(t('picks.map'))}</a>
+          ${about ? `<a class="lnk" target="_blank" rel="noopener" href="${esc(about)}" data-open-link="${esc(r.id)}">ℹ️ ${esc(t('picks.about'))}</a>` : ''}
+        </div>
+        ${ph ? `<a class="credit" target="_blank" rel="noopener" href="${esc(ph.page)}">📷 ${esc(ph.author)} · ${esc(ph.license)}</a>` : ''}
       </div>
       <button class="btn small go" data-go="${esc(r.id)}" aria-label="${esc(t('map.directions'))}">${esc(t('picks.go'))}</button>
-    </div>`).join('');
+    </div>`;
 }
 
 // ------------------------------------------------------------------ data loading
@@ -485,7 +513,6 @@ async function loadTourist({ celebrate = true } = {}) {
   const voucherJustUnlocked = before && before.voucher?.status === 'LOCKED' && tr.voucher?.status === 'UNLOCKED';
 
   renderProfile();
-  if (!before) renderQuickStart();
   if (!before || JSON.stringify(before.stamps) !== JSON.stringify(tr.stamps) || before.voucher?.status !== tr.voucher?.status
       || (before.checkinHistory || []).length !== (tr.checkinHistory || []).length) renderStamps(newStamps);
   renderSos(tr.activeSos);
@@ -508,30 +535,92 @@ async function loadRecs() {
   }
 }
 
-// ------------------------------------------------------------------ quick start (first visit)
-const qsKey = () => `wb-qs-${state.uid}`;
 function storeGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
 function storeSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
 
-function renderQuickStart() {
+// ------------------------------------------------------------------ first use: interests, health, emergency contact
+const ob = { step: 1, interests: new Set(), mobility: null };
+
+function showOnboarding() {
   const tr = state.tourist;
-  const isNew = isGuestName(tr.name) && (!tr.dietary || tr.dietary === 'None');
-  const show = isNew && !storeGet(qsKey());
-  $('#quickStart').classList.toggle('hidden', !show);
-  if (!show) return;
-  const on = new Set($$('#qsDiet .on').map(b => b.dataset.diet));
-  $('#qsDiet').innerHTML = DIET_TAGS.map(d => `<button type="button" data-diet="${d}" class="${on.has(d) ? 'on' : ''}">${esc(dietLabel(d))}</button>`).join('');
+  ob.step = 1;
+  ob.interests = new Set(tr.interests || []);
+  ob.mobility = tr.onboardedAt ? (tr.mobility || 'none') : null;
+  const code = tr.countryCode || '';
+  $('#obName').value = isGuestName(tr.name) ? '' : tr.name;
+  $('#obCountry').innerHTML = countryOptions(code);
+  $('#obSosName').value = tr.emergencyName || '';
+  $('#obSosRel').value = tr.emergencyRelation || 'Family';
+  const ph = splitPhone(tr.emergencyContact, code || 'KR');
+  $('#obDial').innerHTML = dialOptions(ph.code || code || 'KR');
+  $('#obSos').value = ph.number;
+  const parts = String(tr.dietary || '').split(',').map(x => x.trim()).filter(x => x && x.toLowerCase() !== 'none');
+  ob.diet = new Set(parts.filter(p => DIET_TAGS.includes(p)));
+  $('#obDietOther').value = parts.filter(p => !DIET_TAGS.includes(p)).join(', ');
+  $('#obMedical').value = tr.medicalNotes || '';
+  renderOnboarding();
+  $('#onboard').classList.remove('hidden');
+  document.body.classList.add('no-scroll');
 }
 
-async function saveQuickDiet() {
-  const picked = $$('#qsDiet .on').map(b => b.dataset.diet);
-  $('#qsDone').textContent = picked.length ? t('qs.done', { list: picked.map(dietLabel).join(', ') }) : t('qs.none');
+function renderOnboarding() {
+  const root = $('#onboard');
+  applyI18n(root);
+  $('#obLangShort').textContent = LANG.toUpperCase();
+  const keys = state.config?.interests || Object.keys(INTEREST_ICONS);
+  $('#obInterests').innerHTML = keys.map(k => `<button type="button" data-int="${k}" class="${ob.interests.has(k) ? 'on' : ''}" aria-pressed="${ob.interests.has(k)}">
+      <span class="ob-ic">${INTEREST_ICONS[k] || '✨'}</span><b>${esc(t(`int.${k}`))}</b><small>${esc(t(`int.${k}.sub`))}</small></button>`).join('');
+  $('#obMobility').innerHTML = MOBILITY.map(m => `<button type="button" data-mob="${m.v}" class="${ob.mobility === m.v ? 'on' : ''}" aria-pressed="${ob.mobility === m.v}">
+      <span class="ob-ic">${m.i}</span>${esc(t(`mob.${m.v}`))}</button>`).join('');
+  $('#obDiet').innerHTML = DIET_TAGS.map(d => `<button type="button" data-diet="${d}" class="${ob.diet.has(d) ? 'on' : ''}">${esc(dietLabel(d))}</button>`).join('');
+  $$('#onboard .ob-step').forEach(sec => sec.classList.toggle('on', +sec.dataset.step === ob.step));
+  $$('#obDots i').forEach((d, n) => d.classList.toggle('on', n < ob.step));
+  $('#obBack').style.visibility = ob.step === 1 ? 'hidden' : 'visible';
+  $('#obNext').textContent = t(ob.step === 3 ? 'ob.finish' : 'ob.next');
+  $('#obErr').textContent = '';
+}
+
+function obError(key) { $('#obErr').textContent = t(key); }
+
+async function onboardNext() {
+  if (ob.step === 1 && !ob.interests.size) return obError('ob.errInterests');
+  if (ob.step === 2 && !ob.mobility) return obError('ob.errMobility');
+  if (ob.step < 3) { ob.step++; renderOnboarding(); $('#onboard').scrollTop = 0; return; }
+
+  const country = $('#obCountry').value;
+  const number = $('#obSos').value.replace(/[^\d]/g, '').replace(/^0+/, '');
+  const dial = state.config.dialCodes[$('#obDial').value];
+  if (!country) return obError('ob.errCountry');
+  if (!number) return obError('ob.errPhone');
+  if (number.length + dial.length < 6 || number.length + dial.length > 15) return obError('edit.badPhone');
+  const other = $('#obDietOther').value.split(',').map(x => x.trim()).filter(Boolean);
+  const name = $('#obName').value.trim();
+  $('#obNext').disabled = true;
   try {
-    const r = await api('/api/register', { uid: state.uid, dietary: picked.join(', ') || 'None' });
+    const r = await api('/api/register', {
+      uid: state.uid,
+      ...(name ? { name } : {}),
+      countryCode: country,
+      interests: [...ob.interests],
+      mobility: ob.mobility,
+      dietary: [...ob.diet, ...other].join(', ') || 'None',
+      medicalNotes: $('#obMedical').value.trim(),
+      emergencyContact: `+${dial} ${number}`,
+      emergencyName: $('#obSosName').value.trim(),
+      emergencyRelation: $('#obSosRel').value,
+      onboarded: true
+    });
     state.tourist = { ...state.tourist, ...r.tourist };
+    $('#onboard').classList.add('hidden');
+    document.body.classList.remove('no-scroll');
     renderProfile();
+    toast(t('ob.done'), 'good');
     loadRecs();
-  } catch (e) { toast(e.message, 'warn'); }
+  } catch (e) {
+    $('#obErr').textContent = e.message;
+  } finally {
+    $('#obNext').disabled = false;
+  }
 }
 
 // ------------------------------------------------------------------ live sync
@@ -718,6 +807,11 @@ function openEdit() {
   $('#dietPicks').innerHTML = DIET_TAGS
     .map(d => `<button type="button" data-diet="${d}" class="${parts.some(p => p.toLowerCase() === d.toLowerCase()) ? 'on' : ''}">${esc(dietLabel(d))}</button>`).join('');
   $('#inDietOther').value = parts.filter(p => !known.includes(p.toLowerCase())).join(', ');
+  const ints = new Set(tr.interests || []);
+  $('#interestPicks').innerHTML = (state.config?.interests || Object.keys(INTEREST_ICONS))
+    .map(k => `<button type="button" data-int="${k}" class="${ints.has(k) ? 'on' : ''}">${esc(interestLabel(k))}</button>`).join('');
+  $('#inMobility').value = tr.mobility || 'none';
+  $('#inMedical').value = tr.medicalNotes || '';
   applyI18n($('#sheetEdit'));
   openSheet('#sheetEdit');
 }
@@ -738,6 +832,9 @@ async function saveProfile() {
       ...(name ? { name } : {}),
       countryCode: $('#inCountry').value,
       language: $('#inLang').value, dietary,
+      interests: $$('#interestPicks .on').map(b => b.dataset.int),
+      mobility: $('#inMobility').value,
+      medicalNotes: $('#inMedical').value.trim(),
       emergencyContact: phone, emergencyName: $('#inSosName').value.trim(), emergencyRelation: $('#inSosRel').value
     });
     state.tourist = { ...state.tourist, ...r.tourist };
@@ -771,7 +868,7 @@ function rerenderAll() {
   renderProfile();
   renderStamps();
   renderSos(activeSos);
-  renderQuickStart();
+  if (!$('#onboard').classList.contains('hidden')) renderOnboarding();
   renderRecs();
   renderWeather();
   if (state.view === 'sos') renderHelp();
@@ -841,22 +938,47 @@ function bindEvents() {
   $('#btnLang').addEventListener('click', () => openSheet('#sheetLang'));
   $('#btnTheme').addEventListener('click', () => changeTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
 
-  $('#qsDiet').addEventListener('click', e => {
-    const b = e.target.closest('button');
-    if (!b) return;
+  // First-use questions
+  $('#obInterests').addEventListener('click', e => {
+    const b = e.target.closest('[data-int]'); if (!b) return;
+    ob.interests.has(b.dataset.int) ? ob.interests.delete(b.dataset.int) : ob.interests.add(b.dataset.int);
+    b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on')); $('#obErr').textContent = '';
+  });
+  $('#obMobility').addEventListener('click', e => {
+    const b = e.target.closest('[data-mob]'); if (!b) return;
+    ob.mobility = b.dataset.mob;
+    $$('#obMobility button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
+    $('#obErr').textContent = '';
+  });
+  $('#obDiet').addEventListener('click', e => {
+    const b = e.target.closest('[data-diet]'); if (!b) return;
+    ob.diet.has(b.dataset.diet) ? ob.diet.delete(b.dataset.diet) : ob.diet.add(b.dataset.diet);
     b.classList.toggle('on');
-    saveQuickDiet();
   });
-  $('#qsDone').addEventListener('click', () => {
-    storeSet(qsKey(), '1');
-    $('#quickStart').classList.add('hidden');
-    toast(t('qs.allSet'), 'good');
-  });
+  $('#obNext').addEventListener('click', onboardNext);
+  $('#obBack').addEventListener('click', () => { if (ob.step > 1) { ob.step--; renderOnboarding(); } });
+  $('#obLang').addEventListener('click', () => openSheet('#sheetLang'));
+  $('#obCountry').addEventListener('change', () => { if (!$('#obSos').value.trim() && $('#obCountry').value) $('#obDial').value = $('#obCountry').value; });
+  $('#interestPicks').addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.classList.toggle('on'); });
+
+  // A photo that fails to load turns back into the emoji tile
+  $('#recList').addEventListener('error', e => {
+    const img = e.target;
+    if (img.tagName !== 'IMG') return;
+    const box = img.closest('.ph'), card = img.closest('.rec');
+    const r = state.recs.find(x => x.id === card?.dataset.id);
+    if (!box || !r) return;
+    card.classList.remove('has-ph', 'big');
+    card.querySelector('.credit')?.remove();
+    box.outerHTML = `<div class="ico ${r.category}">${esc(img.dataset.emoji)}<span class="rank">${box.querySelector('.rank')?.textContent || ''}</span></div>`;
+  }, true);
 
   // Tap a card -> show it on the map
   $('#recList').addEventListener('click', e => {
     const card = e.target.closest('.rec[data-id]');
-    if (!card || e.target.closest('[data-go]')) return;
+    const ext = e.target.closest('[data-open-link]');
+    if (ext) { api('/api/recommendations/event', { uid: state.uid, itemId: ext.dataset.openLink, action: 'opened' }).catch(() => {}); return; }
+    if (!card || e.target.closest('[data-go]') || e.target.closest('a')) return;
     const m = state.recMarkers[card.dataset.id];
     const entry = state.maps.mapHome;
     if (!m || !entry) return;
@@ -924,6 +1046,7 @@ function bindEvents() {
   try {
     state.config = await api('/api/config');
     await loadTourist({ celebrate: false });
+    if (!state.tourist.onboardedAt) showOnboarding();
     await loadRecs();
     loadRoute();
     startSync();

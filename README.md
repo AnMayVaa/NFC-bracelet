@@ -36,6 +36,7 @@ To simulate taps without hardware, use **Demo control** on the admin desk (`/adm
 | `DEMO_MODE` | `true` | `false` hides demo tools, Demo control, simulated taps, wipe and restore |
 | `UV_OVERRIDE` | empty | Force a UV index (for demos); otherwise live UV from Open-Meteo |
 | `WEATHER_OVERRIDE` | empty | Force weather for a demo, e.g. `{"tempC":24,"rainChance":90,"precipMm":3}` |
+| `PHOTOS_LIVE` | on | `0` stops the live Wikipedia photo lookup (cards keep their emoji unless photos are bundled) |
 | `OSRM_URL` | OpenStreetMap foot router | Routing server for the road route on the Stamps map |
 | `SUPABASE_URL` | empty | Your Supabase project URL. With the key below, data lives in Supabase instead of `database.json` |
 | `SUPABASE_SERVICE_ROLE_KEY` | empty | Supabase secret key (server only, never in the browser or in git) |
@@ -63,6 +64,7 @@ lib/
   store.js           Supabase or JSON-file store, schema version + auto-migration
   weather.js         live Jeju weather: UV, temperature, rain, wind (Open-Meteo, cached 15 min)
   route.js           Stamps route along real roads (saved file, OSRM, or straight lines)
+  photos.js          real photos for the For You cards (bundled file, else Wikipedia/Commons live)
   data/countries.js  calling codes for every country (names come from the browser in any language)
   data/stations.js   stations, stamp kinds, reward rule, help points, hotlines
   data/catalog.js    places / food / activities the AI picks from
@@ -84,21 +86,37 @@ npm run build-route
 
 Run it again whenever a station moves.
 
+### First use
+
+A new wish-band opens a 3-step setup before the app: **interests** (pick at least one), **health** (how the tourist gets around, diet, other allergy, optional medical notes) and **emergency contact** (nationality plus a phone number in international format). Everything can be changed later in **Me**. Medical notes and mobility are shown to the admin desk on any SOS.
+
+### Photos and links on the For You cards
+
+Each card shows a real photo from Wikimedia Commons with its author and licence, or keeps its emoji if no photo is found. Food items are sample dishes, so their photo shows the dish, not a specific shop. Without setup the server looks the photos up live from Wikipedia. To bundle them in the repo so the demo works offline, run once with internet and commit the result:
+
+```
+npm run fetch-photos
+```
+
+It saves the images to `public/img/places/`, the credits to `public/img/places/CREDITS.md` and the list to `lib/data/photos.json`. The card's link goes to the official website when the catalog has one (`website`), otherwise to the place on Google Maps; **About** opens the UNESCO or Wikipedia page.
+
 ### Adding things later
 
 - **New station** (for example a second food stall): add an entry to `lib/data/stations.js` with a new `id` and `kind`, copy `firmware/food` to a new folder, and change `STATION_ID`. The app, admin desk and voucher rule pick it up automatically.
 - **New stamp kind**: add it to `STATION_KINDS`. The voucher needs one stamp of every kind listed in `REWARD.requiredKinds`.
 - **New language**: add a block to `public/i18n.js` and an entry in `LANGS`. Missing keys fall back to English.
-- **New recommendation**: add an item to `lib/data/catalog.js`. Only add dietary tags that are verified; untagged food is hidden from anyone with a restriction.
+- **New recommendation**: add an item to `lib/data/catalog.js` (with `interests`, `effort` and `wiki` titles for the photo in `EXTRA`). Only add dietary tags that are verified; untagged food is hidden from anyone with a restriction.
 - **Database**: set the Supabase variables above. Another database can replace `lib/store.js` as long as it keeps the `refresh/load/save/replace` interface.
 
 ### How the AI picks work
 
-`S = N · D · G · (0.35·Proximity + 0.25·Rating + 0.20·Weather fit + 0.20·Local & quiet + 0.10·Next stop)`
+`S = N · D · G · M · (0.30·Proximity + 0.20·Rating + 0.15·Weather fit + 0.15·Local & quiet + 0.10·Next stop + 0.10·Interests)`
 
 - **N** removes places at stations the tourist already stamped.
 - **D** keeps food only if it carries every diet tag the tourist declared (vegan counts as vegetarian). Unknown allergies fail closed.
 - **G** is the bad-weather gate: in rain or strong wind, fully exposed spots drop (×0.6).
+- **M** is the mobility gate: for wheelchair users steep or long walks are hidden (×0) and some-walking spots drop (×0.5); for short walks only they drop to ×0.4 and ×0.8.
+- **Interests** is 1 when the item matches an interest from the first-use setup, 0 when it doesn't, 0.5 when none are set.
 - **Weather fit** = half UV fit, half live rain / wind / heat / cold fit, from Open-Meteo (`lib/weather.js`, no key, cached 15 min). Rain puts caves, museums and markets first; each card says why ("Dry inside, good for rain", "Out of the wind", "Cool spot for a hot day").
 - Proximity uses the phone GPS if shared, else the last station tapped.
 

@@ -78,6 +78,7 @@ function renderSos(alerts) {
       <div style="font-size:.84rem;margin-top:6px">${esc(a.note)}</div>
       <div style="font-size:.8rem;margin-top:6px">${map}</div>
       <div style="font-size:.8rem;margin-top:4px">☎️ ${esc(a.tourist.emergencyContact || 'no contact')} · 🗣️ ${esc(a.tourist.language)} · 🍽️ ${esc(a.tourist.dietary)}</div>
+      ${a.tourist.medicalNotes || (a.tourist.mobility && a.tourist.mobility !== 'none') ? `<div style="font-size:.8rem;margin-top:4px;color:var(--sos);font-weight:800">🩺 ${esc([a.tourist.mobility === 'wheelchair' ? 'Wheelchair user' : a.tourist.mobility === 'limited' ? 'Short walks only' : '', a.tourist.medicalNotes].filter(Boolean).join(' · '))}</div>` : ''}
       ${a.responder ? `<div style="font-size:.8rem;margin-top:4px">🚑 ${esc(a.responder)}${a.etaMinutes ? `, ETA ${a.etaMinutes} min` : ''}</div>` : ''}
       ${acts ? `<div class="acts">${acts}</div>` : ''}
     </div>`;

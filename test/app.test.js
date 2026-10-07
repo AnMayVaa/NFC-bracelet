@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const os = require('os');
 const path = require('path');
+process.env.PHOTOS_LIVE = '0';
 const { createApp } = require('../lib/app');
 
 function start() {
@@ -90,6 +91,38 @@ test('register: any nationality and an international emergency phone', async () 
     assert.strictEqual(r.status, 400);
     const cfg = await (await fetch(`${base}/api/config`)).json();
     assert.strictEqual(cfg.dialCodes.TH, '66');
+  } finally {
+    s.close();
+  }
+});
+
+test('first use: interests, health and mobility are saved and shape the picks', async () => {
+  const s = await start();
+  const base = `http://127.0.0.1:${s.address().port}`;
+  const post = (p, body) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  try {
+    let r = await post('/api/register', { uid: 'OB1', mobility: 'flying' });
+    assert.strictEqual(r.status, 400);
+    r = await post('/api/register', {
+      uid: 'OB1', countryCode: 'TH', interests: ['food', 'market', 'bogus'], mobility: 'wheelchair',
+      medicalNotes: 'Asthma', emergencyContact: '+66 812345678', onboarded: true
+    });
+    const j = await r.json();
+    assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual(j.tourist.interests, ['food', 'market']);
+    assert.strictEqual(j.tourist.mobility, 'wheelchair');
+    assert.ok(j.tourist.onboardedAt);
+    const recs = await (await fetch(`${base}/api/recommendations?uid=OB1`)).json();
+    assert.ok(recs.recommendations.every(x => x.effort < 2), 'no steep walks for a wheelchair user');
+    assert.strictEqual(recs.recommendations[0].category, 'food');
+    for (const x of recs.recommendations) {
+      assert.ok(x.link && /^https:\/\//.test(x.link.url));
+      assert.ok('photo' in x);
+    }
+    const olle = (await (await fetch(`${base}/api/recommendations?category=activity`)).json()).recommendations.find(x => x.id === 'a-olle-walk');
+    assert.deepStrictEqual(olle.link, { kind: 'website', url: 'https://www.jejuolle.org' });
+    const cfg = await (await fetch(`${base}/api/config`)).json();
+    assert.ok(cfg.interests.includes('nature'));
   } finally {
     s.close();
   }
