@@ -616,6 +616,7 @@ function showOnboarding() {
   const ph = splitPhone(tr.emergencyContact, code || 'KR');
   $('#obDial').innerHTML = dialOptions(ph.code || code || 'KR');
   $('#obSos').value = ph.number;
+  syncPickers();
   const parts = String(tr.dietary || '').split(',').map(x => x.trim()).filter(x => x && x.toLowerCase() !== 'none');
   ob.diet = new Set(parts.filter(p => DIET_TAGS.includes(p)));
   $('#obDietOther').value = parts.filter(p => !DIET_TAGS.includes(p)).join(', ');
@@ -825,18 +826,90 @@ async function autoLocate() {
 function openSheet(id) { $(id).classList.add('open'); }
 function closeSheets() { $$('.sheet-backdrop').forEach(s => s.classList.remove('open')); }
 
+// data-search holds what the type-to-search box matches: local + English name, ISO code and +code
+const searchKey = c => `${countryName(c)} ${countryName(c, 'en')} ${c} +${state.config?.dialCodes?.[c] || ''}`.toLowerCase();
+
 function countryOptions(selected) {
   const dial = state.config?.dialCodes || {};
   const codes = Object.keys(dial).sort((a, b) => countryName(a).localeCompare(countryName(b), locale()));
   return `<option value="">${esc(t('edit.pick'))}</option>` +
-    codes.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${flagOf(c)} ${esc(countryName(c))}</option>`).join('');
+    codes.map(c => `<option value="${c}" data-search="${esc(searchKey(c))}" data-full="${flagOf(c)} ${esc(countryName(c))}" ${c === selected ? 'selected' : ''}>${flagOf(c)} ${esc(countryName(c))}</option>`).join('');
 }
 
 function dialOptions(selected) {
   const dial = state.config?.dialCodes || {};
   return Object.keys(dial).sort((a, b) => countryName(a).localeCompare(countryName(b), locale()))
-    .map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${flagOf(c)} +${dial[c]}</option>`).join('');
+    .map(c => `<option value="${c}" data-search="${esc(searchKey(c))}" data-full="${flagOf(c)} ${esc(countryName(c))} · +${dial[c]}" ${c === selected ? 'selected' : ''}>${flagOf(c)} +${dial[c]}</option>`).join('');
 }
+
+// ------------------------------------------------------------------ type-to-search pickers
+// The <select> stays as the value holder (hidden); a button shows the choice and opens a
+// full-screen list with a search box, so nobody has to scroll through 200+ countries.
+const PICKERS = ['#obCountry', '#obDial', '#inCountry', '#inDial'];
+let pickerTarget = null;
+
+function initPickers() {
+  for (const id of PICKERS) {
+    const sel = $(id);
+    sel.classList.add('sr-select');
+    sel.tabIndex = -1;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pick-btn';
+    btn.dataset.pickFor = id;
+    sel.after(btn);
+    btn.addEventListener('click', () => openPicker(sel));
+    sel.addEventListener('change', () => syncPicker(sel));
+  }
+  $('#pickSearch').addEventListener('input', renderPickList);
+  $('#pickSearch').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { const first = $('#pickList [data-v]'); if (first) choosePick(first.dataset.v); }
+    if (e.key === 'Escape') closePicker();
+  });
+  $('#pickList').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) choosePick(b.dataset.v); });
+  $('#picker').addEventListener('click', e => { if (e.target.id === 'picker' || e.target.closest('[data-pick-close]')) closePicker(); });
+}
+
+function syncPicker(sel) {
+  const btn = sel.nextElementSibling;
+  if (!btn?.classList.contains('pick-btn')) return;
+  const opt = sel.selectedOptions[0];
+  btn.textContent = opt ? opt.textContent : t('edit.pick');
+  btn.classList.toggle('empty', !sel.value);
+}
+const syncPickers = () => PICKERS.forEach(id => syncPicker($(id)));
+
+function openPicker(sel) {
+  pickerTarget = sel;
+  $('#pickTitle').textContent = sel.closest('.field')?.querySelector('label')?.textContent || '';
+  $('#pickSearch').value = '';
+  renderPickList();
+  $('#picker').classList.add('open');
+  setTimeout(() => $('#pickSearch').focus(), 50);
+}
+
+function renderPickList() {
+  const q = $('#pickSearch').value.trim().toLowerCase();
+  const digits = /^\+?\d+$/.test(q) ? q.replace('+', '') : '';
+  const opts = [...pickerTarget.options].filter(o => o.value);
+  const keyOf = o => o.dataset.search || o.textContent.toLowerCase();
+  // "66" or "+66" finds the calling code; words match anywhere in the local or English name
+  const hits = !q ? opts : opts.filter(o => keyOf(o).includes(digits ? `+${digits}` : q));
+  // exact calling code, then names that start with the text, then the rest
+  const MAIN = ['US', 'GB', 'RU', 'CN'];   // the biggest country first where a code is shared (+1, +44, +7, +86)
+  const rank = o => digits ? (keyOf(o).endsWith(`+${digits}`) ? (MAIN.includes(o.value) ? 0 : 1) : 2) : (keyOf(o).startsWith(q) ? 0 : 1);
+  if (q) hits.sort((x, y) => rank(x) - rank(y));
+  $('#pickList').innerHTML = hits.length
+    ? hits.map(o => `<button type="button" data-v="${o.value}" class="${o.value === pickerTarget.value ? 'on' : ''}">${esc(o.dataset.full || o.textContent)}</button>`).join('')
+    : `<div class="empty">${esc(t('pick.none'))}</div>`;
+}
+
+function choosePick(v) {
+  pickerTarget.value = v;
+  pickerTarget.dispatchEvent(new Event('change'));
+  closePicker();
+}
+function closePicker() { $('#picker').classList.remove('open'); pickerTarget = null; }
 
 // "+66 812345678" -> { code: 'TH', number: '812345678' }
 function splitPhone(phone, fallbackCode) {
@@ -864,6 +937,7 @@ function openEdit() {
   const ph = splitPhone(tr.emergencyContact, code || 'KR');
   $('#inDial').innerHTML = dialOptions(ph.code || code || 'KR');
   $('#inSos').value = ph.number;
+  syncPickers();
   const parts = String(tr.dietary || '').split(',').map(s => s.trim()).filter(s => s && s.toLowerCase() !== 'none');
   const known = DIET_TAGS.map(s => s.toLowerCase());
   $('#dietPicks').innerHTML = DIET_TAGS
@@ -1021,7 +1095,7 @@ function bindEvents() {
   $('#obNext').addEventListener('click', onboardNext);
   $('#obBack').addEventListener('click', () => { if (ob.step > 1) { ob.step--; renderOnboarding(); } });
   $('#obLang').addEventListener('click', () => openSheet('#sheetLang'));
-  $('#obCountry').addEventListener('change', () => { if (!$('#obSos').value.trim() && $('#obCountry').value) $('#obDial').value = $('#obCountry').value; });
+  $('#obCountry').addEventListener('change', () => { if (!$('#obSos').value.trim() && $('#obCountry').value) { $('#obDial').value = $('#obCountry').value; syncPicker($('#obDial')); } });
   $('#interestPicks').addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.classList.toggle('on'); });
 
   // A photo that fails to load turns back into the emoji tile
@@ -1085,7 +1159,7 @@ function bindEvents() {
   $('#btnSave').addEventListener('click', saveProfile);
   $('#dietPicks').addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.classList.toggle('on'); });
   // Picking a nationality also sets the phone country code when the number is still empty
-  $('#inCountry').addEventListener('change', () => { if (!$('#inSos').value.trim() && $('#inCountry').value) $('#inDial').value = $('#inCountry').value; });
+  $('#inCountry').addEventListener('change', () => { if (!$('#inSos').value.trim() && $('#inCountry').value) { $('#inDial').value = $('#inCountry').value; syncPicker($('#inDial')); } });
 
   $$('.sheet-backdrop').forEach(s => s.addEventListener('click', e => {
     if (e.target === s || e.target.closest('[data-close]')) closeSheets();
@@ -1117,6 +1191,7 @@ function bindEvents() {
   applyI18n();
   renderSettings();
   bindEvents();
+  initPickers();
   try {
     state.config = await api('/api/config');
     await loadTourist({ celebrate: false });

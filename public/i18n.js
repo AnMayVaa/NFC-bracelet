@@ -88,7 +88,8 @@ const I18N = {
     'today.label': 'Today I feel like', 'today.based': 'based on today: {list}', 'picks.official': 'VisitJeju',
     'env.indoor': 'Indoor', 'env.shaded': 'Shaded', 'env.outdoor': 'Outdoor',
     'pl.why': 'Why we picked it', 'pl.good': 'Good to know', 'pl.check': 'Check before you go',
-    'pl.disclaimer': 'From official tourism listings. Details can change, so check with the venue.', 'pl.onMap': 'Show on map', 'reason.Accessible route documented': 'Accessible route documented'
+    'pl.disclaimer': 'From official tourism listings. Details can change, so check with the venue.', 'pl.onMap': 'Show on map', 'reason.Accessible route documented': 'Accessible route documented',
+    'pick.search': 'Type a country or +code', 'pick.none': 'No match'
   },
   ko: {
     'greet.small': '제주에 오신 것을 환영해요', 'greet.hello': '안녕하세요, {name}님!', 'greet.traveler': '여행자',
@@ -177,7 +178,8 @@ const I18N = {
     'today.label': '오늘 하고 싶은 것', 'today.based': '오늘 선택: {list}', 'picks.official': '공식 정보',
     'env.indoor': '실내', 'env.shaded': '그늘', 'env.outdoor': '야외',
     'pl.why': '추천 이유', 'pl.good': '알아 두세요', 'pl.check': '가기 전에 확인하세요',
-    'pl.disclaimer': '공식 관광 정보 기준입니다. 바뀔 수 있으니 방문 전 확인하세요.', 'pl.onMap': '지도에서 보기', 'reason.Accessible route documented': '무장애 경로 안내 있음'
+    'pl.disclaimer': '공식 관광 정보 기준입니다. 바뀔 수 있으니 방문 전 확인하세요.', 'pl.onMap': '지도에서 보기', 'reason.Accessible route documented': '무장애 경로 안내 있음',
+    'pick.search': '국가명 또는 +번호 입력', 'pick.none': '결과 없음'
   },
   zh: {
     'greet.small': '欢迎来到济州', 'greet.hello': '你好，{name}！', 'greet.traveler': '旅行者',
@@ -266,7 +268,8 @@ const I18N = {
     'today.label': '今天想要', 'today.based': '根据今天：{list}', 'picks.official': '官方信息',
     'env.indoor': '室内', 'env.shaded': '有树荫', 'env.outdoor': '户外',
     'pl.why': '推荐理由', 'pl.good': '值得了解', 'pl.check': '出发前请确认',
-    'pl.disclaimer': '信息来自官方旅游网站，可能会变化，请向场所确认。', 'pl.onMap': '在地图上查看', 'reason.Accessible route documented': '有无障碍路线记录'
+    'pl.disclaimer': '信息来自官方旅游网站，可能会变化，请向场所确认。', 'pl.onMap': '在地图上查看', 'reason.Accessible route documented': '有无障碍路线记录',
+    'pick.search': '输入国家或 +区号', 'pick.none': '没有结果'
   },
   ja: {
     'greet.small': '済州へようこそ', 'greet.hello': 'こんにちは、{name}さん！', 'greet.traveler': '旅行者',
@@ -355,7 +358,8 @@ const I18N = {
     'today.label': '今日の気分', 'today.based': '今日の選択：{list}', 'picks.official': '公式情報',
     'env.indoor': '屋内', 'env.shaded': '日陰', 'env.outdoor': '屋外',
     'pl.why': 'おすすめの理由', 'pl.good': '知っておくと便利', 'pl.check': '行く前に確認',
-    'pl.disclaimer': '公式観光情報より。変わることがあるので施設に確認してください。', 'pl.onMap': '地図で見る', 'reason.Accessible route documented': 'バリアフリールートあり'
+    'pl.disclaimer': '公式観光情報より。変わることがあるので施設に確認してください。', 'pl.onMap': '地図で見る', 'reason.Accessible route documented': 'バリアフリールートあり',
+    'pick.search': '国名か +番号を入力', 'pick.none': '見つかりません'
   },
   th: {
     'greet.small': 'ยินดีต้อนรับสู่เชจู', 'greet.hello': 'สวัสดี {name}!', 'greet.traveler': 'นักเดินทาง',
@@ -444,7 +448,8 @@ const I18N = {
     'today.label': 'วันนี้อยากไป', 'today.based': 'ตามที่เลือกวันนี้: {list}', 'picks.official': 'ข้อมูลทางการ',
     'env.indoor': 'ในร่ม', 'env.shaded': 'มีร่มเงา', 'env.outdoor': 'กลางแจ้ง',
     'pl.why': 'ทำไมถึงแนะนำ', 'pl.good': 'ควรรู้', 'pl.check': 'ตรวจสอบก่อนไป',
-    'pl.disclaimer': 'ข้อมูลจากเว็บท่องเที่ยวทางการ อาจเปลี่ยนแปลงได้ โปรดตรวจสอบกับสถานที่', 'pl.onMap': 'ดูบนแผนที่', 'reason.Accessible route documented': 'มีเส้นทางสำหรับรถเข็น'
+    'pl.disclaimer': 'ข้อมูลจากเว็บท่องเที่ยวทางการ อาจเปลี่ยนแปลงได้ โปรดตรวจสอบกับสถานที่', 'pl.onMap': 'ดูบนแผนที่', 'reason.Accessible route documented': 'มีเส้นทางสำหรับรถเข็น',
+    'pick.search': 'พิมพ์ชื่อประเทศหรือ +รหัส', 'pick.none': 'ไม่พบ'
   }
 };
 

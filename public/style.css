@@ -569,6 +569,24 @@ body.no-scroll { overflow: hidden; }
 .pl-acts.small { margin-top: 8px; }
 :root[data-theme="dark"] .pl-sec.good, :root[data-theme="dark"] .pl-sec.check { color: var(--bas); }
 
+/* ---------- type-to-search pickers ---------- */
+.sr-select { position: absolute !important; width: 1px !important; height: 1px !important; opacity: 0; pointer-events: none; }
+.pick-btn {
+  width: 100%; padding: 11px 30px 11px 14px; border-radius: var(--radius-sm); border: 2px solid var(--bas-s); background: var(--field);
+  text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+.pick-btn.empty { color: var(--muted); }
+.field .phone-row .pick-btn { width: 112px; flex: 0 0 112px; padding-left: 10px; }
+.picker { position: fixed; inset: 0; z-index: 950; background: rgba(59, 63, 69, .45); display: none; align-items: flex-end; justify-content: center; }
+.picker.open { display: flex; }
+.picker-box { width: 100%; max-width: 480px; height: 85vh; background: var(--paper); border-radius: 28px 28px 0 0; padding: 16px 16px 0; display: flex; flex-direction: column; gap: 10px; }
+.picker-head { display: flex; align-items: center; justify-content: space-between; font-size: 1.05rem; }
+.pick-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; padding-bottom: 20px; }
+.pick-list button { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); font-weight: 700; }
+.pick-list button.on { background: var(--tan-s); color: var(--tan-d); border-radius: 10px; }
+
 :root[data-theme="dark"] {
   --cream: #14171B;
   --paper: #1E2227;
