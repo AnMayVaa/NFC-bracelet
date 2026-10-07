@@ -84,7 +84,11 @@ const I18N = {
     'int.activity.sub': 'Hands-on and outdoor fun', 'int.market': 'Markets', 'int.market.sub': 'Shopping like a local',
     'int.cafe': 'Cafés', 'int.cafe.sub': 'Tea, views and slow time', 'picks.website': 'Website',
     'picks.map': 'Map', 'picks.about': 'About', 'reason.Matches your interests': 'Matches your interests',
-    'reason.Easy access': 'Easy access'
+    'reason.Easy access': 'Easy access',
+    'today.label': 'Today I feel like', 'today.based': 'based on today: {list}', 'picks.official': 'VisitJeju',
+    'env.indoor': 'Indoor', 'env.shaded': 'Shaded', 'env.outdoor': 'Outdoor',
+    'pl.why': 'Why we picked it', 'pl.good': 'Good to know', 'pl.check': 'Check before you go',
+    'pl.disclaimer': 'From official tourism listings. Details can change, so check with the venue.', 'pl.onMap': 'Show on map', 'reason.Accessible route documented': 'Accessible route documented'
   },
   ko: {
     'greet.small': '제주에 오신 것을 환영해요', 'greet.hello': '안녕하세요, {name}님!', 'greet.traveler': '여행자',
@@ -169,7 +173,11 @@ const I18N = {
     'int.activity.sub': '체험과 야외 활동', 'int.market': '시장', 'int.market.sub': '현지인처럼 쇼핑',
     'int.cafe': '카페', 'int.cafe.sub': '차, 풍경, 여유', 'picks.website': '웹사이트',
     'picks.map': '지도', 'picks.about': '정보', 'reason.Matches your interests': '관심사와 맞아요',
-    'reason.Easy access': '이동이 쉬워요'
+    'reason.Easy access': '이동이 쉬워요',
+    'today.label': '오늘 하고 싶은 것', 'today.based': '오늘 선택: {list}', 'picks.official': '공식 정보',
+    'env.indoor': '실내', 'env.shaded': '그늘', 'env.outdoor': '야외',
+    'pl.why': '추천 이유', 'pl.good': '알아 두세요', 'pl.check': '가기 전에 확인하세요',
+    'pl.disclaimer': '공식 관광 정보 기준입니다. 바뀔 수 있으니 방문 전 확인하세요.', 'pl.onMap': '지도에서 보기', 'reason.Accessible route documented': '무장애 경로 안내 있음'
   },
   zh: {
     'greet.small': '欢迎来到济州', 'greet.hello': '你好，{name}！', 'greet.traveler': '旅行者',
@@ -254,7 +262,11 @@ const I18N = {
     'int.activity.sub': '动手体验和户外乐趣', 'int.market': '市场', 'int.market.sub': '像当地人一样购物',
     'int.cafe': '咖啡馆', 'int.cafe.sub': '茶、风景和慢时光', 'picks.website': '官网',
     'picks.map': '地图', 'picks.about': '简介', 'reason.Matches your interests': '符合你的兴趣',
-    'reason.Easy access': '无障碍出行'
+    'reason.Easy access': '无障碍出行',
+    'today.label': '今天想要', 'today.based': '根据今天：{list}', 'picks.official': '官方信息',
+    'env.indoor': '室内', 'env.shaded': '有树荫', 'env.outdoor': '户外',
+    'pl.why': '推荐理由', 'pl.good': '值得了解', 'pl.check': '出发前请确认',
+    'pl.disclaimer': '信息来自官方旅游网站，可能会变化，请向场所确认。', 'pl.onMap': '在地图上查看', 'reason.Accessible route documented': '有无障碍路线记录'
   },
   ja: {
     'greet.small': '済州へようこそ', 'greet.hello': 'こんにちは、{name}さん！', 'greet.traveler': '旅行者',
@@ -339,7 +351,11 @@ const I18N = {
     'int.activity.sub': '体験とアウトドア', 'int.market': '市場', 'int.market.sub': '地元の人のように買い物',
     'int.cafe': 'カフェ', 'int.cafe.sub': 'お茶、景色、のんびり', 'picks.website': '公式サイト',
     'picks.map': '地図', 'picks.about': '詳しく', 'reason.Matches your interests': '興味にぴったり',
-    'reason.Easy access': '移動しやすい'
+    'reason.Easy access': '移動しやすい',
+    'today.label': '今日の気分', 'today.based': '今日の選択：{list}', 'picks.official': '公式情報',
+    'env.indoor': '屋内', 'env.shaded': '日陰', 'env.outdoor': '屋外',
+    'pl.why': 'おすすめの理由', 'pl.good': '知っておくと便利', 'pl.check': '行く前に確認',
+    'pl.disclaimer': '公式観光情報より。変わることがあるので施設に確認してください。', 'pl.onMap': '地図で見る', 'reason.Accessible route documented': 'バリアフリールートあり'
   },
   th: {
     'greet.small': 'ยินดีต้อนรับสู่เชจู', 'greet.hello': 'สวัสดี {name}!', 'greet.traveler': 'นักเดินทาง',
@@ -424,7 +440,11 @@ const I18N = {
     'int.activity.sub': 'ลงมือทำและกิจกรรมกลางแจ้ง', 'int.market': 'ตลาด', 'int.market.sub': 'ช้อปแบบคนท้องถิ่น',
     'int.cafe': 'คาเฟ่', 'int.cafe.sub': 'ชา วิว และเวลาสบายๆ', 'picks.website': 'เว็บไซต์',
     'picks.map': 'แผนที่', 'picks.about': 'ข้อมูล', 'reason.Matches your interests': 'ตรงกับความสนใจ',
-    'reason.Easy access': 'เดินทางสะดวก'
+    'reason.Easy access': 'เดินทางสะดวก',
+    'today.label': 'วันนี้อยากไป', 'today.based': 'ตามที่เลือกวันนี้: {list}', 'picks.official': 'ข้อมูลทางการ',
+    'env.indoor': 'ในร่ม', 'env.shaded': 'มีร่มเงา', 'env.outdoor': 'กลางแจ้ง',
+    'pl.why': 'ทำไมถึงแนะนำ', 'pl.good': 'ควรรู้', 'pl.check': 'ตรวจสอบก่อนไป',
+    'pl.disclaimer': 'ข้อมูลจากเว็บท่องเที่ยวทางการ อาจเปลี่ยนแปลงได้ โปรดตรวจสอบกับสถานที่', 'pl.onMap': 'ดูบนแผนที่', 'reason.Accessible route documented': 'มีเส้นทางสำหรับรถเข็น'
   }
 };
 

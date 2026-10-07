@@ -121,6 +121,10 @@ test('first use: interests, health and mobility are saved and shape the picks', 
     }
     const olle = (await (await fetch(`${base}/api/recommendations?category=activity`)).json()).recommendations.find(x => x.id === 'a-olle-walk');
     assert.deepStrictEqual(olle.link, { kind: 'website', url: 'https://www.jejuolle.org' });
+    const maze = (await (await fetch(`${base}/api/recommendations?category=activity`)).json()).recommendations.find(x => x.id === 'a-maze');
+    assert.strictEqual(maze.link.kind, 'official');
+    const today = await (await fetch(`${base}/api/recommendations?uid=OB1&today=culture,bogus`)).json();
+    assert.ok(today.recommendations[0].interests.includes('culture'));
     const cfg = await (await fetch(`${base}/api/config`)).json();
     assert.ok(cfg.interests.includes('nature'));
   } finally {

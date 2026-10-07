@@ -100,12 +100,16 @@ npm run fetch-photos
 
 It saves the images to `public/img/places/`, the credits to `public/img/places/CREDITS.md` and the list to `lib/data/photos.json`. The card's link goes to the official website when the catalog has one (`website`), otherwise to the place on Google Maps; **About** opens the UNESCO or Wikipedia page.
 
+### Place details and today's interests
+
+Tapping a card opens its details: photo, address, why it was picked, **Good to know** and **Check before you go** notes from the official listing, and buttons for the official page (VisitJeju or VisitKorea), directions and the map. The **Today I feel like** chips above the list replace the profile interests for today only (`/api/recommendations?today=food,nature`). Real venues, their source pages and the accessibility notes came from the team's Figma Make mockup research.
+
 ### Adding things later
 
 - **New station** (for example a second food stall): add an entry to `lib/data/stations.js` with a new `id` and `kind`, copy `firmware/food` to a new folder, and change `STATION_ID`. The app, admin desk and voucher rule pick it up automatically.
 - **New stamp kind**: add it to `STATION_KINDS`. The voucher needs one stamp of every kind listed in `REWARD.requiredKinds`.
 - **New language**: add a block to `public/i18n.js` and an entry in `LANGS`. Missing keys fall back to English.
-- **New recommendation**: add an item to `lib/data/catalog.js` (with `interests`, `effort` and `wiki` titles for the photo in `EXTRA`). Only add dietary tags that are verified; untagged food is hidden from anyone with a restriction.
+- **New recommendation**: add an item to `lib/data/catalog.js` (with `interests`, `effort`, `wiki` titles for the photo, and `source`, `address`, `good`, `check` in `EXTRA`). Only add dietary tags that are verified; untagged food is hidden from anyone with a restriction.
 - **Database**: set the Supabase variables above. Another database can replace `lib/store.js` as long as it keeps the `refresh/load/save/replace` interface.
 
 ### How the AI picks work

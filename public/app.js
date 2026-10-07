@@ -103,6 +103,7 @@ const state = {
   config: null,
   tourist: null,
   category: 'all',
+  today: new Set(),    // "Today I feel like" interests; empty = use the profile ones
   origin: null,        // phone GPS if the tourist allowed it
   recs: [],
   weather: null,
@@ -476,6 +477,10 @@ function renderRecs(data) {
   list.innerHTML = state.recs.slice(0, 8).map((r, i) => recCard(r, i)).join('');
 }
 
+const LINK_LABEL = { website: '🌐 picks.website', official: '🏛️ picks.official', map: '🗺️ picks.map' };
+const linkLabel = kind => { const [ic, key] = LINK_LABEL[kind].split(' '); return `${ic} ${t(key)}`; };
+const ENV = { INDOOR_SHELTER: '🏠 env.indoor', SHADED_WALK: '🌳 env.shaded', OUTDOOR_SUN: '☀️ env.outdoor' };
+
 // One For You card: real photo (credited) or the emoji, plus website / map / about links.
 function recCard(r, i) {
   const chipTone = r.category === 'food' ? 'tan' : r.category === 'place' ? 'sea' : 'leaf';
@@ -494,13 +499,69 @@ function recCard(r, i) {
         <div class="note">${esc(r.note || '')}</div>
         <div class="reasons">${(r.reasons || []).slice(0, i === 0 ? 3 : 2).map(x => `<span class="chip ${chipTone}">${esc(translateReason(x))}</span>`).join('')}</div>
         <div class="rec-links">
-          <a class="lnk" target="_blank" rel="noopener" href="${esc(link.url)}" data-open-link="${esc(r.id)}">${link.kind === 'website' ? '🌐 ' + esc(t('picks.website')) : '🗺️ ' + esc(t('picks.map'))}</a>
+          <a class="lnk" target="_blank" rel="noopener" href="${esc(link.url)}" data-open-link="${esc(r.id)}">${esc(linkLabel(link.kind))}</a>
           ${about ? `<a class="lnk" target="_blank" rel="noopener" href="${esc(about)}" data-open-link="${esc(r.id)}">ℹ️ ${esc(t('picks.about'))}</a>` : ''}
         </div>
         ${ph ? `<a class="credit" target="_blank" rel="noopener" href="${esc(ph.page)}">📷 ${esc(ph.author)} · ${esc(ph.license)}</a>` : ''}
       </div>
       <button class="btn small go" data-go="${esc(r.id)}" aria-label="${esc(t('map.directions'))}">${esc(t('picks.go'))}</button>
     </div>`;
+}
+
+// ------------------------------------------------------------------ "Today I feel like" chips
+function renderToday() {
+  const keys = state.config?.interests || Object.keys(INTEREST_ICONS);
+  $('#todayChips').innerHTML = keys.map(k => `<button type="button" data-today="${k}" class="${state.today.has(k) ? 'on' : ''}" aria-pressed="${state.today.has(k)}">${esc(interestLabel(k))}</button>`).join('');
+  const why = $('#recWhy');
+  if (state.today.size) { why.removeAttribute('data-i18n'); why.textContent = t('today.based', { list: [...state.today].map(k => t(`int.${k}`)).join(' + ') }); }
+  else if (!why.dataset.i18n) { why.dataset.i18n = 'picks.why'; why.textContent = t('picks.why'); }
+}
+
+// ------------------------------------------------------------------ place detail sheet
+function openPlace(id) {
+  const r = state.recs.find(x => x.id === id);
+  if (!r) return;
+  api('/api/recommendations/event', { uid: state.uid, itemId: r.id, action: 'opened' }).catch(() => {});
+  const ph = r.photo;
+  $('#plHero').innerHTML = ph
+    ? `<img src="${esc(ph.src)}" alt="${esc(r.title)}"><a class="pl-credit" target="_blank" rel="noopener" href="${esc(ph.page)}">📷 ${esc(ph.author)} · ${esc(ph.license)}</a>`
+    : `<div class="pl-emoji ${r.category}">${r.emoji || '📍'}</div>`;
+  $('#plHero').querySelector('img')?.addEventListener('error', () => { $('#plHero').innerHTML = `<div class="pl-emoji ${r.category}">${r.emoji || '📍'}</div>`; });
+  const env = ENV[r.uvType] ? ENV[r.uvType].split(' ') : null;
+  const link = r.link || { kind: 'map', url: mapSearchUrl(`${r.title} Jeju`) };
+  const about = r.info || ph?.article;
+  const list = (items, cls) => `<ul class="pl-list ${cls}">${items.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+  $('#plBody').innerHTML = `
+    <div class="pl-chips"><span class="chip ${r.category === 'food' ? 'tan' : r.category === 'place' ? 'sea' : 'leaf'}">${esc(t(`cat.${r.category}`))}</span>
+      ${env ? `<span class="chip">${env[0]} ${esc(t(env[1]))}</span>` : ''}
+      ${r.distanceKm != null ? `<span class="chip">📍 ${esc(t('reason.km', { km: r.distanceKm }))}</span>` : ''}</div>
+    <h2>${esc(r.title)} <span class="ko">${esc(r.title_ko || '')}</span></h2>
+    <p class="pl-note">${esc(r.note || '')}</p>
+    ${r.address ? `<p class="muted small-p">📫 ${esc(r.address)}</p>` : ''}
+    ${(r.reasons || []).length ? `<div class="pl-sec"><b>${esc(t('pl.why'))}</b><div class="reasons">${r.reasons.map(x => `<span class="chip leaf">${esc(translateReason(x))}</span>`).join('')}</div></div>` : ''}
+    ${(r.good || []).length ? `<div class="pl-sec good"><b>✅ ${esc(t('pl.good'))}</b>${list(r.good, '')}</div>` : ''}
+    ${(r.check || []).length ? `<div class="pl-sec check"><b>⚠️ ${esc(t('pl.check'))}</b>${list(r.check, '')}</div>` : ''}
+    ${r.source || r.good ? `<p class="muted pl-src">${esc(t('pl.disclaimer'))}</p>` : ''}
+    <div class="pl-acts">
+      <a class="btn ghost" target="_blank" rel="noopener" href="${esc(link.url)}">${esc(linkLabel(link.kind))}</a>
+      <button class="btn" data-go="${esc(r.id)}">${esc(t('picks.go'))}</button>
+    </div>
+    <div class="pl-acts small">
+      <button class="btn ghost small" data-showmap="${esc(r.id)}">🗺️ ${esc(t('pl.onMap'))}</button>
+      ${about ? `<a class="btn ghost small" target="_blank" rel="noopener" href="${esc(about)}">ℹ️ ${esc(t('picks.about'))}</a>` : ''}
+    </div>`;
+  openSheet('#sheetPlace');
+}
+
+function showOnMap(id) {
+  const m = state.recMarkers[id];
+  const entry = state.maps.mapHome;
+  if (!m || !entry) return;
+  $$('.rec.sel').forEach(x => x.classList.remove('sel'));
+  $(`.rec[data-id="${id}"]`)?.classList.add('sel');
+  window.scrollTo({ top: $('#mapHome').getBoundingClientRect().top + window.scrollY - 70, behavior: 'smooth' });
+  entry.map.flyTo(m.getLatLng(), 13, { duration: .6 });
+  setTimeout(() => m.openPopup(), 650);
 }
 
 // ------------------------------------------------------------------ data loading
@@ -527,6 +588,7 @@ async function loadTourist({ celebrate = true } = {}) {
 
 async function loadRecs() {
   const q = new URLSearchParams({ uid: state.uid, category: state.category });
+  if (state.today.size) q.set('today', [...state.today].join(','));
   if (state.origin) { q.set('lat', state.origin.lat); q.set('lng', state.origin.lng); }
   try {
     renderRecs(await api(`/api/recommendations?${q}`));
@@ -869,6 +931,7 @@ function rerenderAll() {
   renderStamps();
   renderSos(activeSos);
   if (!$('#onboard').classList.contains('hidden')) renderOnboarding();
+  renderToday();
   renderRecs();
   renderWeather();
   if (state.view === 'sos') renderHelp();
@@ -973,20 +1036,31 @@ function bindEvents() {
     box.outerHTML = `<div class="ico ${r.category}">${esc(img.dataset.emoji)}<span class="rank">${box.querySelector('.rank')?.textContent || ''}</span></div>`;
   }, true);
 
-  // Tap a card -> show it on the map
+  // Tap a card -> place details
   $('#recList').addEventListener('click', e => {
     const card = e.target.closest('.rec[data-id]');
     const ext = e.target.closest('[data-open-link]');
     if (ext) { api('/api/recommendations/event', { uid: state.uid, itemId: ext.dataset.openLink, action: 'opened' }).catch(() => {}); return; }
     if (!card || e.target.closest('[data-go]') || e.target.closest('a')) return;
-    const m = state.recMarkers[card.dataset.id];
-    const entry = state.maps.mapHome;
-    if (!m || !entry) return;
-    $$('.rec.sel').forEach(x => x.classList.remove('sel'));
-    card.classList.add('sel');
-    window.scrollTo({ top: $('#mapHome').getBoundingClientRect().top + window.scrollY - 70, behavior: 'smooth' });
-    entry.map.flyTo(m.getLatLng(), 13, { duration: .6 });
-    setTimeout(() => m.openPopup(), 650);
+    openPlace(card.dataset.id);
+  });
+  $('#recList').addEventListener('keydown', e => {
+    const card = e.target.closest('.rec[data-id]');
+    if (card && e.key === 'Enter') openPlace(card.dataset.id);
+  });
+  $('#sheetPlace').addEventListener('click', e => {
+    const b = e.target.closest('[data-showmap]');
+    if (b) { closeSheets(); showOnMap(b.dataset.showmap); }
+  });
+
+  $('#todayChips').addEventListener('click', e => {
+    const b = e.target.closest('[data-today]');
+    if (!b) return;
+    const k = b.dataset.today;
+    state.today.has(k) ? state.today.delete(k) : state.today.add(k);
+    renderToday();
+    $('#recList').innerHTML = '<div class="rec skeleton"></div><div class="rec skeleton"></div>';
+    loadRecs();
   });
 
   $('#btnLocate').addEventListener('click', async () => {
@@ -1047,6 +1121,7 @@ function bindEvents() {
     state.config = await api('/api/config');
     await loadTourist({ celebrate: false });
     if (!state.tourist.onboardedAt) showOnboarding();
+    renderToday();
     await loadRecs();
     loadRoute();
     startSync();

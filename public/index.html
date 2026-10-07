@@ -87,6 +87,10 @@
         <b data-i18n="picks.title">Picked for you</b>
         <span class="muted" id="recWhy" data-i18n="picks.why">interests · health · live weather</span>
       </div>
+      <div class="today-row">
+        <span class="today-lbl" data-i18n="today.label">Today I feel like</span>
+        <div class="today-chips" id="todayChips"></div>
+      </div>
       <div class="rec-list" id="recList">
         <div class="rec skeleton"></div><div class="rec skeleton"></div><div class="rec skeleton"></div>
       </div>
@@ -338,6 +342,13 @@
       <button class="btn ghost" style="flex:1" data-close data-i18n="edit.cancel">Cancel</button>
       <button class="btn" style="flex:2" id="btnSave" data-i18n="edit.save">Save</button>
     </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="sheetPlace">
+  <div class="sheet place-sheet">
+    <div class="pl-hero" id="plHero"></div>
+    <div class="pl-body" id="plBody"></div>
   </div>
 </div>
 

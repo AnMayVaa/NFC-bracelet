@@ -83,3 +83,15 @@ test('SOS flow rejects illegal moves', () => {
   core.advanceSos(a, 'RESOLVED');
   assert.strictEqual(a.status, 'RESOLVED');
 });
+
+test('today interests replace profile interests; documented access is called out', () => {
+  const t = core.newGuest('T9');
+  t.interests = ['food'];
+  t.mobility = 'wheelchair';
+  const today = core.recommend(t, CATALOG, { category: 'place', today: ['culture'] });
+  assert.ok(today[0].interests.includes('culture'));
+  const all = core.recommend(t, CATALOG, { category: 'place' });
+  const jeolmul = all.find(p => p.id === 'p-jeolmul');
+  assert.ok(jeolmul.reasons.includes('Accessible route documented'));
+  assert.ok(!all.find(p => p.effort === 2));
+});
