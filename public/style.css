@@ -488,8 +488,9 @@ tr.flash td { animation: flash 1.2s; }
 .seg button.on { background: var(--paper); color: var(--bas); box-shadow: var(--shadow-sm); }
 .sheet-sub { font-weight: 900; margin: 6px 0 8px; padding-top: 10px; border-top: 2px dashed var(--line); }
 .phone-row { display: flex; gap: 8px; }
-.phone-row select { width: 112px; flex-shrink: 0; }
-.phone-row input { flex: 1; min-width: 0; }
+/* more specific than `.field select { width: 100% }` so the number box keeps its room */
+.field .phone-row select { width: 112px; flex: 0 0 112px; padding-left: 10px; padding-right: 6px; }
+.field .phone-row input { flex: 1 1 auto; width: auto; min-width: 0; }
 .lang-list { display: grid; gap: 8px; margin-top: 12px; }
 .lang-list button { padding: 14px; border-radius: var(--radius-sm); background: var(--sand); font-weight: 900; font-size: 1.05rem; text-align: left; }
 .lang-list button.on { background: var(--tan-s); color: var(--tan-d); box-shadow: 0 0 0 2px var(--tan) inset; }
