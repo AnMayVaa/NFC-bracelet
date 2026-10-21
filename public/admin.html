@@ -27,6 +27,24 @@
   <!-- Evaluation indicators -->
   <section class="metrics" id="metrics"></section>
 
+  <!-- Field trial (real people, consent given) and local impact -->
+  <section class="insights">
+    <div class="card" id="trialPanel">
+      <h3>🧪 Field trial <span class="ko">현장 실험</span><span class="sp"></span>
+        <button class="btn ghost small" data-trial-export="summary">⬇️ Indicators CSV</button>
+        <button class="btn ghost small" data-trial-export="bands">⬇️ Per band CSV</button>
+        <button class="btn ghost small" data-trial-export="json" title="Indicators, impact and per-band rows">JSON</button>
+      </h3>
+      <div id="trialBody"></div>
+    </div>
+    <div class="card" id="impactPanel">
+      <h3>🌱 Local impact <span class="ko">지역 상생</span><span class="sp"></span>
+        <span class="seg-mini" id="impactScope"><button data-scope="all" class="on">All bands</button><button data-scope="trial">Trial only</button></span>
+      </h3>
+      <div id="impactBody"></div>
+    </div>
+  </section>
+
   <!-- Demo control: mock data, one-click journey steps, clean-up -->
   <section class="card demo-ctl demo-only" id="demoCtl">
     <h3>🧪 Demo control <span class="ko">시연 도구</span></h3>
@@ -52,6 +70,7 @@
           <button class="btn small" data-sim="redeem">🎁 Redeem voucher</button>
           <button class="btn small sea" data-sim="gps">📍 Move GPS</button>
           <button class="btn small sos" data-sim="sos">🚨 Send SOS</button>
+          <button class="btn small sos" data-sim="sos-taps" title="Five quick taps of the band at its last station, like a tourist with a dead phone">🖐️ 5-tap band SOS</button>
           <button class="btn small ghost" data-sim="reset">↺ Reset band</button>
         </div>
         <p class="hint" id="simNote">Pick a wish-band, then press the steps in order.</p>

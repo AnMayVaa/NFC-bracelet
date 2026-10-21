@@ -278,6 +278,7 @@ function refreshMapSize() {
 const isGuestName = n => !n || /^Wish-band Guest/.test(n);
 
 function renderProfile() {
+  renderTrial();
   const tr = state.tourist;
   if (!tr) return;
   const first = isGuestName(tr.name) ? t('greet.traveler') : tr.name.split(/[\s(]/)[0];
@@ -679,10 +680,91 @@ async function onboardNext() {
     renderProfile();
     toast(t('ob.done'), 'good');
     loadRecs();
+    maybeAskTrial();
   } catch (e) {
     $('#obErr').textContent = e.message;
   } finally {
     $('#obNext').disabled = false;
+  }
+}
+
+// ------------------------------------------------------------------ field trial: consent + survey
+const SURVEY_ICONS = { overall: '😊', aiPicks: '✨', safety: '🛡️' };
+const survey = {};
+
+const inTrial = () => !!(state.tourist?.trial?.consentAt && !state.tourist.trial.withdrawnAt);
+const trialOn = () => !!state.config?.trial?.enabled;
+
+function renderTrial() {
+  const tr = state.tourist;
+  if (!tr) return;
+  const done = tr.trial?.survey;
+  $('#trialNudge').classList.toggle('hidden', !(inTrial() && !done && (tr.checkinHistory || []).length > 0));
+  const card = $('#meTrial');
+  const show = trialOn() || inTrial();
+  card.classList.toggle('hidden', !show);
+  if (!show) return;
+  card.innerHTML = inTrial()
+    ? `<div class="lbl">🧪 ${esc(t('trial.card'))}</div>
+       <div class="chips"><span class="chip leaf">✓ ${esc(t('trial.joined'))}</span>${done ? `<span class="chip">📝 ${esc(t('trial.answered'))}</span>` : ''}</div>
+       <p class="muted small-p" style="margin:8px 0 10px">${esc(t(done ? 'trial.thanks' : 'trial.surveyAsk'))}</p>
+       <div class="trial-acts"><button class="btn small" data-act="survey">${esc(t(done ? 'trial.edit' : 'trial.answer'))}</button>
+       <button class="btn ghost small" data-act="trial-leave">${esc(t('trial.leaveBtn'))}</button></div>`
+    : `<div class="lbl">🧪 ${esc(t('trial.card'))}</div>
+       <p class="muted small-p" style="margin-bottom:10px">${esc(t('trial.cardSub'))}</p>
+       <button class="btn small" data-act="trial-open">${esc(t('trial.read'))}</button>`;
+}
+
+function openTrial() {
+  $('#trialAgree').checked = false;
+  applyI18n($('#sheetTrial'));
+  openSheet('#sheetTrial');
+}
+
+// Asked once, after first-use setup, while the team runs a trial (TRIAL_MODE=true on the server).
+function maybeAskTrial() {
+  if (trialOn() && state.tourist?.onboardedAt && !state.tourist.trial) setTimeout(openTrial, 600);
+}
+
+async function setTrial(consent) {
+  if (consent && !$('#trialAgree').checked) return toast(t('trial.tick'), 'warn');
+  try {
+    const r = await api('/api/trial/consent', { uid: state.uid, consent });
+    state.tourist.trial = r.trial;
+    renderTrial();
+    closeSheets();
+    toast(t(consent ? 'trial.welcome' : r.trial.withdrawnAt ? 'trial.left' : 'trial.declined'), consent ? 'good' : '');
+  } catch (e) { toast(e.message, 'warn'); }
+}
+
+function openSurvey() {
+  const prev = state.tourist?.trial?.survey || {};
+  for (const q of state.config.trial.questions) survey[q] = prev[q] || 0;
+  $('#surveyComment').value = prev.comment || '';
+  $('#surveyErr').textContent = '';
+  renderSurvey();
+  applyI18n($('#sheetSurvey'));
+  openSheet('#sheetSurvey');
+}
+
+function renderSurvey() {
+  $('#surveyQs').innerHTML = state.config.trial.questions.map(q => `<div class="sv-q"><b>${SURVEY_ICONS[q] || '•'} ${esc(t(`survey.${q}`))}</b>
+    <div class="sv-scale">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-q="${q}" data-v="${n}" class="${survey[q] === n ? 'on' : ''}" aria-pressed="${survey[q] === n}">${n}</button>`).join('')}</div></div>`).join('');
+}
+
+async function sendSurvey() {
+  if (Object.values(survey).some(v => !v)) { $('#surveyErr').textContent = t('survey.err'); return; }
+  $('#btnSurveySend').disabled = true;
+  try {
+    const r = await api('/api/trial/survey', { uid: state.uid, ...survey, comment: $('#surveyComment').value.trim() });
+    state.tourist.trial = r.trial;
+    renderTrial();
+    closeSheets();
+    toast(t('survey.done'), 'good');
+  } catch (e) {
+    $('#surveyErr').textContent = e.message;
+  } finally {
+    $('#btnSurveySend').disabled = false;
   }
 }
 
@@ -716,6 +798,11 @@ function startSync() {
 }
 
 // ------------------------------------------------------------------ SOS tab
+function renderTapTip() {
+  const n = state.config?.sosTaps?.taps;
+  if (n) $('#sosTapTip').textContent = t('sos.tapTip', { n });
+}
+
 function renderHelp() {
   const cfg = state.config;
   $('#hotlines').innerHTML = cfg.hotlines.map(h => `<a class="hotline" href="tel:${esc(h.number)}"><b>${esc(h.number)}</b><span>${esc(t(`hl.${h.number}`) === `hl.${h.number}` ? h.label : t(`hl.${h.number}`))}</span></a>`).join('');
@@ -1005,6 +1092,7 @@ function rerenderAll() {
   renderProfile();
   renderStamps();
   renderSos(activeSos);
+  renderTapTip();
   if (!$('#onboard').classList.contains('hidden')) renderOnboarding();
   renderToday();
   renderRecs();
@@ -1071,7 +1159,20 @@ function bindEvents() {
     const th = e.target.closest('[data-theme-btn]');
     if (th) return changeTheme(th.dataset.themeBtn);
     if (e.target.closest('[data-act="edit"]')) return openEdit();
+    if (e.target.closest('[data-act="survey"]')) return openSurvey();
+    if (e.target.closest('[data-act="trial-open"]')) return openTrial();
+    if (e.target.closest('[data-act="trial-leave"]') && confirm(t('trial.leaveConfirm'))) return setTrial(false);
   });
+
+  $('#btnTrialYes').addEventListener('click', () => setTrial(true));
+  $('#btnTrialNo').addEventListener('click', () => (state.tourist?.trial ? closeSheets() : setTrial(false)));
+  $('#surveyQs').addEventListener('click', e => {
+    const b = e.target.closest('[data-q]');
+    if (!b) return;
+    survey[b.dataset.q] = +b.dataset.v;
+    renderSurvey();
+  });
+  $('#btnSurveySend').addEventListener('click', sendSurvey);
 
   $('#btnLang').addEventListener('click', () => openSheet('#sheetLang'));
   $('#langSeg').addEventListener('click', e => { if (e.target.closest('[data-open-lang]')) openSheet('#sheetLang'); });
@@ -1174,10 +1275,17 @@ function bindEvents() {
     catch (e) { toast(e.message, 'warn'); }
   });
 
-  $('#btnRedeem').addEventListener('click', () => { $('#inPin').value = ''; openSheet('#sheetRedeem'); setTimeout(() => $('#inPin').focus(), 250); });
+  $('#btnRedeem').addEventListener('click', () => {
+    const ko = LANG === 'ko';
+    $('#inShop').innerHTML = `<option value="">${esc(t('redeem.pickShop'))}</option>` +
+      (state.config?.merchants || []).map(m => `<option value="${esc(m.id)}">${esc(ko && m.name_ko ? m.name_ko : m.name)}</option>`).join('');
+    $('#inPin').value = '';
+    openSheet('#sheetRedeem');
+  });
   $('#btnConfirmRedeem').addEventListener('click', async () => {
+    if (!$('#inShop').value) return toast(t('redeem.pickShop'), 'warn');
     try {
-      const r = await api('/api/redeem', { uid: state.uid, pin: $('#inPin').value });
+      const r = await api('/api/redeem', { uid: state.uid, pin: $('#inPin').value, shop: $('#inShop').value });
       state.tourist = r.tourist;
       renderVoucher();
       renderRouteStrip();
@@ -1197,7 +1305,9 @@ function bindEvents() {
   try {
     state.config = await api('/api/config');
     await loadTourist({ celebrate: false });
+    renderTapTip();
     if (!state.tourist.onboardedAt) showOnboarding();
+    else maybeAskTrial();
     renderToday();
     await loadRecs();
     loadRoute();

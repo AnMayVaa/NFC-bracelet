@@ -33,6 +33,8 @@ To simulate taps without hardware, use **Demo control** on the admin desk (`/adm
 | `MERCHANT_PIN` | `4000` | PIN the market vendor types to redeem a voucher |
 | `STATION_KEY` | empty | If set, ESP32s must send it as `X-Station-Key` (put the same value in `secrets.h`) |
 | `ADMIN_PIN` | empty | If set, the admin desk asks for it |
+| `TRIAL_MODE` | `false` | `true` makes the app invite every new user to the field trial (consent sheet after first-use setup) |
+| `TRIAL_SALT` | `jeju-wish-band` | Mixed into the participant codes in trial exports; set any secret word for a real trial |
 | `DEMO_MODE` | `true` | `false` hides demo tools, Demo control, simulated taps, wipe and restore |
 | `UV_OVERRIDE` | empty | Force a UV index (for demos); otherwise live UV from Open-Meteo |
 | `WEATHER_OVERRIDE` | empty | Force weather for a demo, e.g. `{"tempC":24,"rainChance":90,"precipMm":3}` |
@@ -46,7 +48,7 @@ To simulate taps without hardware, use **Demo control** on the admin desk (`/adm
 Without the two Supabase variables the app keeps everything in `database.json` (on Vercel that is `/tmp`, which resets). With them, every wish-band, stamp and SOS alert is saved in Supabase Postgres, shared by all Vercel instances, and you can check it in the Supabase **Table Editor**.
 
 1. Create a free project at [supabase.com](https://supabase.com) (region: Seoul or Singapore).
-2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql), press **Run**. This creates the `tourists` and `sos_alerts` tables plus read-only views `checkins`, `location_log` and `recommendation_events`.
+2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql), press **Run**. This creates the `tourists` and `sos_alerts` tables plus read-only views `checkins`, `location_log`, `recommendation_events`, `trial_participants`, `voucher_redemptions` and `sos_triggers`. Running it again after an update only adds the new views.
 3. **Project Settings → API**: copy the **Project URL** and the **service_role** (secret) key.
 4. **Vercel → smart-nfc-bracelet → Settings → Environment Variables**: add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then redeploy. For local runs put them in your shell before `npm start`.
 5. Open `/api/health`: it shows `"storage": "supabase"` and `"database": { "ok": true, "tourists": N }` when it is connected, or the Supabase error message if not. On /admin, **Demo control → Load full demo story** fills the tables with 11 demo wish-bands and 3 SOS alerts; the header chip turns green ("Supabase").
@@ -104,6 +106,31 @@ It saves the images to `public/img/places/`, the credits to `public/img/places/C
 
 Tapping a card opens its details: photo, address, why it was picked, **Good to know** and **Check before you go** notes from the official listing, and buttons for the official page (VisitJeju or VisitKorea), directions and the map. The **Today I feel like** chips above the list replace the profile interests for today only (`/api/recommendations?today=food,nature`). Real venues, their source pages and the accessibility notes came from the team's Figma Make mockup research.
 
+### Field trial (real people)
+
+Demo bands make good screenshots but are not results. For the advisor's four indicators the team runs a trial with real travelers:
+
+1. Set `TRIAL_MODE=true` (Vercel → Environment Variables, then redeploy) and a private `TRIAL_SALT`.
+2. Before the trial, replace the placeholder shop types in `MERCHANTS` (`lib/data/stations.js`) with the real participating Dongmun Market shops.
+3. After first-use setup the app shows a consent sheet (what is counted, how it is used, leave any time; 18+). Joining is optional and the app works the same either way. The traveler can join or leave later in **Me**.
+4. Trial bands get a 3-question survey (1 to 5: overall, AI picks useful, felt safe, plus a comment) in **Me** and as a nudge on **Stamps** after the first check-in.
+5. On /admin the **Field trial** card shows the four indicators from trial bands only, counting only what happened after consent. **Indicators CSV**, **Per band CSV** and **JSON** download them. Exports carry a participant code instead of the name, phone, tag id or medical notes.
+
+| Indicator | How it is counted |
+| :--- | :--- |
+| Recommendation conversion rate | station visits after an AI pick for that station ÷ AI picks shown (top 3 per load) |
+| User satisfaction | mean of the 1–5 "overall" answer, plus the share who answered 4 or 5 |
+| Check-ins and stamps | taps at stations, new stamps, per band, finished routes, vouchers |
+| Last-location tracking success | trial SOS alerts that reached the desk with a location ÷ all trial SOS alerts; also the share of bands with a known last location |
+
+### Local impact panel
+
+The **Local impact** card on /admin shows where check-ins, AI picks shown and AI picks opened go: local family businesses (`isLocalBusiness`) and quiet spots (`crowdLevel` under 0.4) against crowded hotspots (0.7 and up), for all bands or trial bands only. Below it, vouchers redeemed per shop: the merchant now picks their shop next to the PIN when redeeming. Crowd levels in the catalog are placeholders until checked with the venues.
+
+### SOS by tapping the band (phone dead)
+
+Tap the same wish-band **5 times within about 10 s (12 s allowed)** on any food, place or activity station. The station plays a high-low siren, strobes its LED for 30 s and calls `POST /api/sos/band`. The help desk gets a PENDING SOS pinned to that station, with the tourist's medical notes, mobility and emergency contact, marked "Band-tap SOS" on /admin. Only the first tap is sent as a check-in, so a normal tap still stamps exactly once. If the station is offline the SOS waits first in its queue (LED keeps strobing) and is sent with the real tap time when Wi-Fi is back. A band that already has an open SOS gets the same alert back, not a second one. The server also counts rapid `POST /api/checkin` taps itself (old firmware and the web simulator), and /admin → Demo control has a **5-tap band SOS** button. The admin desk reader does not count taps (it is always staffed).
+
 ### Adding things later
 
 - **New station** (for example a second food stall): add an entry to `lib/data/stations.js` with a new `id` and `kind`, copy `firmware/food` to a new folder, and change `STATION_ID`. The app, admin desk and voucher rule pick it up automatically.
@@ -139,8 +166,12 @@ Tapping a card opens its details: photo, address, why it was picked, **Good to k
 | `POST /api/recommendations/event` | phone | `shown / opened / visited` for the conversion metric |
 | `POST /api/location` | phone | Share GPS as last-known location |
 | `POST /api/sos` · `/api/sos/:action` | phone / admin | Raise SOS; `acknowledge`, `dispatch`, `resolve`, `cancel` |
-| `POST /api/redeem` | phone + merchant | `{uid, pin}` → single-use voucher |
-| `GET /api/admin/status` | admin desk | Everything above plus metrics |
+| `POST /api/redeem` | phone + merchant | `{uid, pin, shop}` → single-use voucher, `shop` from `MERCHANTS` |
+| `POST /api/sos/band` | station ESP32 | `{uid, station, taps, ageSec}` → SOS from rapid band taps |
+| `POST /api/trial/consent` | phone | `{uid, consent: true/false}` join, decline or leave the field trial |
+| `POST /api/trial/survey` | phone | `{uid, overall, aiPicks, safety, comment}` 1–5 answers (trial bands only) |
+| `GET /api/admin/trial-export` | admin desk | `?part=summary\|bands&format=csv`, or JSON with everything |
+| `GET /api/admin/status` | admin desk | Everything above plus metrics, trial indicators and impact numbers |
 
 Old firmware ids `checkpoint1` / `checkpoint2` still work (they map to `place` / `food`).
 
@@ -151,7 +182,7 @@ Old firmware ids `checkpoint1` / `checkpoint2` still work (they map to `place` /
 Each folder is a normal Arduino sketch. Board: **ESP32 Dev Module**, 115200 baud. Libraries: **MFRC522** (GithubCommunity) and **Adafruit PN532**.
 
 1. In each sketch folder, copy `secrets.example.h` to `secrets.h` and fill in Wi-Fi. `secrets.h` is git-ignored.
-2. Flash `admin` to the desk ESP32, and `food`, `place`, `activity` to the three stations.
+2. Flash `admin` to the desk ESP32, and `food`, `place`, `activity` to the three stations (firmware 2.1.0 adds the 5-tap SOS).
 
 ### Wi-Fi (`wifi_setup.h`, same file in every sketch)
 

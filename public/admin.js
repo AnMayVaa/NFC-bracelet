@@ -56,6 +56,63 @@ function renderMetrics(m) {
     `<div class="metric ${c}"><div class="l">${l}</div><div class="v">${v}</div><div class="muted" style="font-size:.74rem;font-weight:700">${s}</div></div>`).join('');
 }
 
+// ------------------------------------------------------------------ field trial + local impact
+let impactScope = 'all';
+const fmt = (v, unit = '') => (v == null ? '–' : `${v}${unit}`);
+
+function renderTrial(ind, trialMode) {
+  const box = (l, v, sub) => `<div class="ind"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  const c = ind.conversion, sat = ind.satisfaction, ch = ind.checkins, loc = ind.lastLocation;
+  $('#trialBody').innerHTML = `
+    <div class="muted" style="font-size:.8rem;font-weight:700;margin-top:4px">
+      ${ind.bands} trial band${ind.bands === 1 ? '' : 's'} with consent${ind.firstConsent ? ` · since ${new Date(ind.firstConsent).toLocaleDateString()}` : ''}. Demo bands are never counted here.
+    </div>
+    ${trialMode ? '' : '<div class="trial-off">Trial mode is off, so the app does not ask new users to join. Set TRIAL_MODE=true on the server before the trial.</div>'}
+    <div class="ind-grid">
+      ${box('1 · AI pick conversion', fmt(c.rate, '%'), `${c.visited} visits / ${c.shown} shown · ${c.opened} opened`)}
+      ${box('2 · Satisfaction', sat.overall == null ? '–' : `${sat.overall}/5`, `${sat.responses} answer${sat.responses === 1 ? '' : 's'} · ${fmt(sat.satisfiedShare, '%')} gave 4–5 · AI ${fmt(sat.aiPicks)} · safe ${fmt(sat.safety)}`)}
+      ${box('3 · Check-ins', ch.total, `${ch.stamps} new stamps · ${fmt(ch.perBand)} per band · ${ch.completedRoute} finished · ${ch.redeemed} vouchers used`)}
+      ${box('4 · Last-location success', fmt(loc.rate, '%'), `${loc.located}/${loc.sosAlerts} SOS with a location · ${fmt(loc.fixRate, '%')} of bands have a fix`)}
+    </div>`;
+}
+
+function shareBlock(title, tally) {
+  if (!tally.total) return `<div class="share-row"><div class="hd"><span>${title}</span><span class="muted">none yet</span></div></div>`;
+  const w = k => (tally[k] / tally.total) * 100;
+  return `<div class="share-row">
+    <div class="hd"><span>${title} <span class="muted">(${tally.total})</span></span><span>🏪 ${tally.localShare}% local business</span></div>
+    <div class="share-bar" title="quiet ${tally.quiet} · moderate ${tally.moderate} · hotspot ${tally.hotspot}">
+      <i class="quiet" style="width:${w('quiet')}%"></i><i class="moderate" style="width:${w('moderate')}%"></i><i class="hotspot" style="width:${w('hotspot')}%"></i>
+    </div></div>`;
+}
+
+function renderImpact(im) {
+  const max = Math.max(1, ...im.redemptions.map(r => r.count));
+  $('#impactBody').innerHTML = `
+    <div class="muted" style="font-size:.8rem;font-weight:700;margin-top:4px">Where visits and AI picks go: local family businesses and quiet spots vs crowded hotspots (${im.bands} band${im.bands === 1 ? '' : 's'}).</div>
+    ${shareBlock('Check-ins at stations', im.checkins)}
+    ${shareBlock('AI picks shown', im.picks.shown)}
+    ${shareBlock('AI picks opened', im.picks.opened)}
+    <div class="share-key"><span><i style="background:#5E9A62"></i>quiet (crowd &lt; ${im.buckets.quietBelow})</span><span><i style="background:#E0B04A"></i>moderate</span><span><i style="background:#D2574B"></i>hotspot (crowd ≥ ${im.buckets.hotspotFrom})</span></div>
+    <div class="share-row"><div class="hd"><span>🎁 Vouchers redeemed per shop</span><span>${im.redeemedTotal} total</span></div>
+      ${im.redemptions.length ? `<ul class="shop-list">${im.redemptions.map(r => `<li><span style="min-width:150px">${esc(r.name)}</span><span class="bar"><i style="width:${(r.count / max) * 100}%"></i></span><b>${r.count}</b></li>`).join('')}</ul>` : '<p class="muted" style="font-size:.8rem">No redemptions yet.</p>'}
+    </div>
+    <p class="muted" style="font-size:.72rem;margin-top:10px">Crowd levels and local flags come from the catalog (placeholders until checked with the venues).</p>`;
+}
+
+async function downloadTrial(kind) {
+  const q = kind === 'json' ? '' : `?part=${kind}&format=csv`;
+  try {
+    const res = await fetch(`/api/admin/trial-export${q}`, { headers: { 'X-Admin-Pin': adminPin } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(await res.blob());
+    a.download = `wish-band-trial-${kind}-${new Date().toISOString().slice(0, 10)}.${kind === 'json' ? 'json' : 'csv'}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  } catch (err) { toast(`Export failed: ${err.message}`, 'warn'); }
+}
+
 function renderSos(alerts) {
   const active = alerts.filter(a => ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED'].includes(a.status));
   $('#sosCount').textContent = `${active.length} active`;
@@ -75,6 +132,7 @@ function renderSos(alerts) {
     }[a.status] || '';
     return `<div class="sos-alert ${done ? 'done' : ''}">
       <div class="hd"><b>${esc(a.tourist.name)}</b><span class="chip mono">${esc(a.uid)}</span><span class="chip ${done ? '' : 'sos'}">${a.status}</span><span class="muted" style="font-size:.74rem;margin-left:auto">${ago(a.triggeredAt)}</span></div>
+      ${a.trigger === 'band' ? `<div style="margin-top:6px"><span class="chip sos" style="white-space:normal">🖐️ Band-tap SOS · phone may be off</span></div>` : ''}
       <div style="font-size:.84rem;margin-top:6px">${esc(a.note)}</div>
       <div style="font-size:.8rem;margin-top:6px">${map}</div>
       <div style="font-size:.8rem;margin-top:4px">☎️ ${esc(a.tourist.emergencyContact || 'no contact')} · 🗣️ ${esc(a.tourist.language)} · 🍽️ ${esc(a.tourist.dietary)}</div>
@@ -194,6 +252,8 @@ async function refresh() {
       if (newSos.length) { toast(`🚨 New SOS from ${newSos[0].tourist.name}`, 'warn'); beep(); }
     }
     renderMetrics(status.metrics);
+    renderTrial(status.trial, status.trialMode);
+    renderImpact(status.impact[impactScope]);
     renderSos(status.sosAlerts);
     renderStations(status.stations);
     renderRows(status.tourists);
@@ -337,6 +397,15 @@ function bind() {
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     } catch (err) { toast(`Backup failed: ${err.message}`, 'warn'); }
+  });
+
+  $('#trialPanel').addEventListener('click', e => { const b = e.target.closest('[data-trial-export]'); if (b) downloadTrial(b.dataset.trialExport); });
+  $('#impactScope').addEventListener('click', e => {
+    const b = e.target.closest('[data-scope]');
+    if (!b) return;
+    impactScope = b.dataset.scope;
+    $$('#impactScope button').forEach(x => x.classList.toggle('on', x === b));
+    if (status) renderImpact(status.impact[impactScope]);
   });
 
   $('#btnCloseQr').addEventListener('click', () => $('#qrModal').classList.remove('open'));

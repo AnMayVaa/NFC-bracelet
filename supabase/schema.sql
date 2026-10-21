@@ -83,3 +83,45 @@ select t.uid,
 from public.tourists t,
      jsonb_array_elements(coalesce(t.data->'recEvents', '[]'::jsonb)) e
 order by at desc;
+
+-- ---------------------------------------------------------------- field trial + impact (added 2026-10)
+-- The app keeps these inside `data`, so nothing new has to exist for it to run;
+-- the views only make the trial easy to check in the SQL Editor.
+
+-- Bands whose owner agreed to the field trial (withdrawn ones are left out), with survey answers.
+create or replace view public.trial_participants with (security_invoker = true) as
+select t.uid,
+       t.data->>'countryCode'                         as country,
+       (t.data->'trial'->>'consentAt')::timestamptz   as consented_at,
+       t.data->'trial'->>'consentVersion'             as consent_version,
+       (t.data->'trial'->'survey'->>'overall')::int   as survey_overall,
+       (t.data->'trial'->'survey'->>'aiPicks')::int   as survey_ai_picks,
+       (t.data->'trial'->'survey'->>'safety')::int    as survey_safety,
+       t.data->'trial'->'survey'->>'comment'          as survey_comment,
+       t.stamps,
+       t.voucher_status
+from public.tourists t
+where t.data->'trial'->>'consentAt' is not null
+  and t.data->'trial'->>'withdrawnAt' is null;
+
+-- Redeemed vouchers and the shop that took them (impact panel).
+create or replace view public.voucher_redemptions with (security_invoker = true) as
+select t.uid,
+       t.data->'voucher'->>'code'                      as code,
+       t.data->'voucher'->>'shop'                      as shop,
+       (t.data->'voucher'->>'redeemedAt')::timestamptz as redeemed_at
+from public.tourists t
+where t.data->'voucher'->>'status' = 'REDEEMED'
+order by redeemed_at desc;
+
+-- How each SOS was raised: phone (hold button), band (rapid taps at a station) or admin (demo).
+create or replace view public.sos_triggers with (security_invoker = true) as
+select a.alert_id,
+       a.uid,
+       a.status,
+       coalesce(a.data->>'trigger', 'phone') as trigger,
+       a.data->>'stationId'                  as station,
+       a.location_source,
+       a.triggered_at
+from public.sos_alerts a
+order by a.triggered_at desc;

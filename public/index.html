@@ -124,6 +124,12 @@
         <button class="btn block" style="margin-top:12px;background:#fff;color:var(--tan-d);box-shadow:0 4px 0 rgba(0,0,0,.12)" id="btnRedeem" disabled></button>
       </div>
 
+      <div class="card trial-nudge hidden" id="trialNudge">
+        <span class="e">📝</span>
+        <div style="flex:1;min-width:0"><b data-i18n="trial.nudge">How was your trip so far?</b><div class="muted small-p" data-i18n="trial.nudgeSub">3 quick questions for our student study.</div></div>
+        <button class="btn small" data-act="survey" data-i18n="trial.answer">Answer</button>
+      </div>
+
       <div class="section-title" data-i18n="trail.title">🧭 Your trail</div>
       <div class="card"><ul class="timeline" id="timeline"></ul></div>
     </section>
@@ -138,6 +144,7 @@
           <p class="muted small-p" data-i18n="sos.desc"></p>
           <button class="hold-btn" id="holdSos"><div class="fill" id="holdFill"></div><span data-i18n="sos.hold">🚨 Hold to send SOS</span></button>
           <input class="input" id="sosNote" maxlength="120" data-i18n-ph="sos.notePh" style="margin-top:12px">
+          <div class="tap-sos-tip"><span class="e">🖐️</span><div><b data-i18n="sos.tapTitle">Phone dead?</b> <span id="sosTapTip">Tap your wish-band 5 times quickly on any wish-band station. It flashes and sounds an alarm, and the help desk gets your SOS.</span></div></div>
         </div>
         <div id="sosActive" class="hidden">
           <h3 style="color:var(--sos)" data-i18n="sos.onWay">Help is on the way</h3>
@@ -203,6 +210,8 @@
       </div>
 
       <div class="card contact-card" id="meContact"></div>
+
+      <div class="card trial-card hidden" id="meTrial"></div>
 
       <div class="card settings">
         <h3 data-i18n="me.settings">⚙️ Settings</h3>
@@ -357,10 +366,44 @@
     <div class="grab"></div>
     <h2 data-i18n="redeem.title">🎁 Merchant confirmation</h2>
     <p class="muted" style="font-size:.88rem;margin-bottom:14px" data-i18n="redeem.sub"></p>
+    <div class="field"><label data-i18n="redeem.shop">Shop</label><select id="inShop"></select></div>
     <div class="field"><label data-i18n="redeem.pin">Merchant PIN</label><input id="inPin" type="password" inputmode="numeric" maxlength="8" placeholder="••••"></div>
     <div style="display:flex;gap:10px">
       <button class="btn ghost" style="flex:1" data-close data-i18n="edit.cancel">Cancel</button>
       <button class="btn" style="flex:2" id="btnConfirmRedeem" data-i18n="redeem.use">Use voucher</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="sheetTrial">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2 data-i18n="trial.title">🧪 Help our student study</h2>
+    <p class="muted small-p" data-i18n="trial.intro">We are students from KMUTNB, Thailand, testing Jeju wish-band with real travelers. Joining is optional and the app works the same either way.</p>
+    <div class="trial-terms">
+      <div><b data-i18n="trial.whatTitle">What we count</b><p data-i18n="trial.what">Your stamp taps (station and time), which AI picks you see and open, your survey answers, and whether an SOS reached the help desk with a location.</p></div>
+      <div><b data-i18n="trial.howTitle">How we use it</b><p data-i18n="trial.how">Only as totals for our competition report. Exports use a random code, never your name, phone number, tag number or medical notes.</p></div>
+      <div><b data-i18n="trial.leaveTitle">Leaving</b><p data-i18n="trial.leave">You can leave any time in Me. Your data is then left out of the results.</p></div>
+    </div>
+    <label class="trial-check"><input type="checkbox" id="trialAgree"> <span data-i18n="trial.agree">I am 18 or older, I have read this and I agree to take part.</span></label>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn ghost" style="flex:1" id="btnTrialNo" data-i18n="trial.no">No thanks</button>
+      <button class="btn" style="flex:2" id="btnTrialYes" data-i18n="trial.yes">Join the study</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="sheetSurvey">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2 data-i18n="survey.title">📝 Quick survey</h2>
+    <p class="muted small-p" data-i18n="survey.sub">1 = not at all, 5 = very much.</p>
+    <div class="survey" id="surveyQs"></div>
+    <div class="field"><label data-i18n="survey.comment">Anything else? (optional)</label><input id="surveyComment" maxlength="500" data-i18n-ph="survey.commentPh"></div>
+    <div class="ob-err" id="surveyErr" role="alert"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn ghost" style="flex:1" data-close data-i18n="edit.cancel">Cancel</button>
+      <button class="btn" style="flex:2" id="btnSurveySend" data-i18n="survey.send">Send answers</button>
     </div>
   </div>
 </div>
