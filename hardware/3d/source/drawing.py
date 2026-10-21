@@ -250,7 +250,7 @@ def sheet_admin(pdf):
     ], "Components (sizes assumed, check yours)")
     sh.note_box(138, 46, 120, [
         "Shell: tangerine PLA/PETG. The STL lies on its",
-        "sloped top, so it prints with no supports.",
+        "sloped top; supports on (build plate only).",
         "Plate: basalt grey, flat side down.",
         "0.2 mm layers, 3 walls, 15–20 % infill.",
         "PN532: foam tape in the frame under the tray.",

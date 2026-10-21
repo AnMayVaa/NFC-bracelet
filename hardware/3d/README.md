@@ -23,7 +23,7 @@ Printable 3D enclosures for the two Jeju wish-band devices: the **admin desk uni
 
 Both devices also need an ESP32 DevKitC, a 12 mm buzzer on GPIO 4, a 5 mm LED on GPIO 2, four M3 self-tapping screws and four Ø10 rubber feet.
 
-**Admin desk unit.** Staff place the wristband charm in the Ø50 tray on the sloped top, and a small lip stops it sliding off. The PN532 is held in a frame under the tray and reads through 1.2 mm of plastic. The ESP32 sits in a cradle on the bottom plate with its USB port at the back wall. The shell is printed lying on its sloped top, so it needs no supports.
+**Admin desk unit.** Staff place the wristband charm in the Ø50 tray on the sloped top, and a small lip stops it sliding off. The PN532 is held in a frame under the tray and reads through 1.2 mm of plastic. The ESP32 sits in a cradle on the bottom plate with its USB port at the back wall. The shell prints lying on its sloped top. Turn supports on (touching the build plate only), because the band stop lip and tray ring stand 0.6–3 mm proud of that face.
 
 **Check-in station.** Tourists tap the charm on the Ø46 circle on the lid. The RC522 is held in a frame under the lid and reads through 2.2 mm of plastic. The ESP32 sits in a floor cradle with its USB port at the left wall.
 
