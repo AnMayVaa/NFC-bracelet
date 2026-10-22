@@ -141,7 +141,8 @@ def adm_slope_cut(m, drop=0.0):
     return m.trim_by_plane((0, k / n, -1 / n), -(z0 - drop) / n)
 
 
-def admin_shell():
+def admin_shell(flat=False):
+    """flat=True: nothing stands above the sloped top, so it prints on that face with no supports."""
     W, D = P["adm_w"], P["adm_d"]
     t, rc = P["wall"], P["corner_r"]
     a, k, z0 = adm_top_frame()
@@ -160,12 +161,18 @@ def admin_shell():
     # wristband tray: recessed dish with raised NFC waves + a front stop lip
     u0, v0 = P["adm_reader_u"], P["adm_reader_v"]
     td, tz = P["tray_d"], P["tray_depth"]
-    shell = shell - on_top(cyl(tz + 2, td / 2), u0, v0, -tz)
-    shell = shell + on_top(nfc_icon(tz), u0, v0, -tz)
-    ring = cyl(0.6, td / 2 + 2.2) - cyl(2, td / 2 + 0.9).translate((0, 0, -0.5))
-    shell = shell + on_top(ring, u0, v0, -0.01)
-    lip = box(td * 0.7, 2.4, 3.0, False).translate((-td * 0.35, -td / 2 - 3.4, -0.5))
-    shell = shell + on_top(lip, u0, v0)
+    if flat:     # tray drawn as an engraved ring + NFC waves (narrow grooves bridge cleanly face down)
+        groove = cyl(2, td / 2 + 0.6) - cyl(3, td / 2 - 0.6).translate((0, 0, -0.5))
+        shell = shell - on_top(groove, u0, v0, -0.6)
+        shell = shell - on_top(nfc_icon(2), u0, v0, -0.5)
+    else:
+        shell = shell - on_top(cyl(tz + 2, td / 2), u0, v0, -tz)
+        shell = shell + on_top(nfc_icon(tz), u0, v0, -tz)
+    if not flat:
+        ring = cyl(0.6, td / 2 + 2.2) - cyl(2, td / 2 + 0.9).translate((0, 0, -0.5))
+        shell = shell + on_top(ring, u0, v0, -0.01)
+        lip = box(td * 0.7, 2.4, 3.0, False).translate((-td * 0.35, -td / 2 - 3.4, -0.5))
+        shell = shell + on_top(lip, u0, v0)
     # PN532 frame under the top, centred under the tray
     pw, pd = P["pn532"]
     frame = box(pw + 4.4, pd + 4.4, 2.6) - box(pw + 0.6, pd + 0.6, 4)
@@ -178,14 +185,20 @@ def admin_shell():
     tube = cyl(6.0, P["buzzer_d"] / 2 + 1.4) - cyl(7, P["buzzer_d"] / 2 + 0.2).translate((0, 0, -0.5))
     shell = shell + on_top(tube.translate((0, 0, -t - 6.0 + 0.01)), bu, bv)
     lu, lv = 36.0, 18.0
-    shell = shell + on_top(cyl(0.8, P["led_d"] / 2 + 2.2), lu, lv, -0.01)
+    if flat:     # engraved ring instead of a raised bezel
+        shell = shell - on_top(cyl(1.0, P["led_d"] / 2 + 2.2) - cyl(2, P["led_d"] / 2 + 1.4).translate((0, 0, -0.5)), lu, lv, -0.6)
+    else:
+        shell = shell + on_top(cyl(0.8, P["led_d"] / 2 + 2.2), lu, lv, -0.01)
     shell = shell - on_top(cyl(20, P["led_d"] / 2 + 0.15, seg=48), lu, lv, -10)
     ltube = cyl(5.0, P["led_d"] / 2 + 1.4) - cyl(6, P["led_d"] / 2 + 0.15).translate((0, 0, -0.5))
     shell = shell + on_top(ltube.translate((0, 0, -t - 5.0 + 0.01)), lu, lv)
     # basalt pebble motif between LED and buzzer
     for (pu, pv, r) in [(38.0, -1.5, 3.4), (32.5, -2.4, 2.6), (35.6, 3.0, 2.4)]:
         pebble = sphere(1, 32).scale((r, r * 0.8, 0.9)).translate((pu, pv, -0.1))
-        shell = shell + on_top(pebble ^ box(r * 3, r * 3, 2, False).translate((pu - r * 1.5, pv - r * 1.5, 0.05 - 0.1)), 0, 0)
+        if flat:     # engraved 0.6 deep instead of raised
+            shell = shell - on_top(pebble.translate((0, 0, -0.5)), 0, 0)
+        else:
+            shell = shell + on_top(pebble ^ box(r * 3, r * 3, 2, False).translate((pu - r * 1.5, pv - r * 1.5, 0.05 - 0.1)), 0, 0)
     # USB cable opening in the rear wall, in line with the ESP32 port
     ex, ey = P["esp32"]
     uw, uh = P["usb_cut"]
@@ -331,6 +344,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     parts = {
         "admin_shell": admin_shell(),
+        "admin_shell_flat": admin_shell(flat=True),   # no supports needed
         "admin_bottom_plate": admin_plate(),
         "station_base": station_base(),
         "station_lid": station_lid(),
@@ -348,7 +362,7 @@ def main():
         pm = tm.copy()
         if name == "station_lid":      # print upside down: flat top on the bed
             pm.apply_transform(trimesh.transformations.rotation_matrix(math.pi, (1, 0, 0)))
-        if name == "admin_shell":      # print on its sloped top: tilt the top flat, then flip
+        if name.startswith("admin_shell"):   # print on its sloped top: tilt the top flat, then flip
             pm.apply_transform(trimesh.transformations.rotation_matrix(-a, (1, 0, 0)))
             pm.apply_transform(trimesh.transformations.rotation_matrix(math.pi, (1, 0, 0)))
         pm.apply_translation((0, 0, -pm.bounds[0][2]))

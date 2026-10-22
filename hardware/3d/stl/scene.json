@@ -56,6 +56,16 @@
    ],
    "triangles": 9514
   },
+  "admin_shell_flat": {
+   "watertight": true,
+   "volume_cm3": 64.2,
+   "size_mm": [
+    110.0,
+    90.0,
+    53.2
+   ],
+   "triangles": 9730
+  },
   "admin_bottom_plate": {
    "watertight": true,
    "volume_cm3": 27.93,
