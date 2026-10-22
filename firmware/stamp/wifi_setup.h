@@ -62,6 +62,11 @@ bool portalOn = false;
 unsigned long portalTouchedAt = 0;
 String portalMessage = "";
 
+// Optional: a sketch can add its own section and routes to the phone setup page
+// (the stamp station adds its "This station" picker). Leave nullptr for none.
+void (*portalExtraHtml)(String& html) = nullptr;
+void (*portalExtraRoutes)(WebServer& web) = nullptr;
+
 int lastScanCount = 0;
 String lastScanSsid[30];
 int lastScanRssi[30];
@@ -239,7 +244,9 @@ void handleRoot() {
     h += "<span style=flex:1>" + htmlEscape(lastScanSsid[i]) + (known ? " ★" : "") + "</span><small>" + String(lastScanRssi[i]) + " dBm" + (lastScanOpen[i] ? "" : " 🔒") + "</small></label>";
   }
   h += F("<p><input type=password name=p placeholder='Password (blank = use saved)'></p><button>Connect &amp; remember</button></form>"
-         "<p><a href=/>↻ Scan again</a> · <a href=/forget>Forget saved networks</a></p></body></html>");
+         "<p><a href=/>↻ Scan again</a> · <a href=/forget>Forget saved networks</a></p>");
+  if (portalExtraHtml) portalExtraHtml(h);
+  h += F("</body></html>");
   server->send(200, "text/html", h);
 }
 
@@ -270,6 +277,7 @@ void startPortal() {
   server->on("/", handleRoot);
   server->on("/save", HTTP_POST, handleSave);
   server->on("/forget", handleForget);
+  if (portalExtraRoutes) portalExtraRoutes(*server);
   server->onNotFound(handleRoot);
   server->begin();
   portalOn = true;

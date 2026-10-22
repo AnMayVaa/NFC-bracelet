@@ -1,12 +1,23 @@
 /*
   =============================================================================
-  🌋 Jeju wish-band — Place Station
+  🌋 Jeju wish-band — Stamp Station (one sketch for food, place and activity)
   Board: ESP32 Dev Module     Reader: MFRC522 (SPI)  or  PN532 (I2C)
   =============================================================================
 
   What it does
-    Tap a wish-band -> POST /api/checkin {uid, station:"place"} -> the tourist
-    gets a place stamp. Collect food + place + activity to unlock the voucher.
+    Tap a wish-band -> POST /api/checkin {uid, station:"<id>"} -> the tourist
+    gets a stamp of that station's kind. Collect food + place + activity to
+    unlock the voucher.
+
+  Which station is this board?
+    Flash the same sketch to every station, then pick its id (saved in flash,
+    survives power-off and re-flashing):
+      Serial Monitor : station place | station food | station activity
+                       (any other id from lib/data/stations.js works too, e.g. station food2)
+      Phone page     : the setup page below has a "This station" picker
+      First boot     : uses STATION_ID from secrets.h (default "food")
+    At power-on the LED blinks the station number: 1 = place, 2 = food, 3 = activity,
+    4 = any other id. Type "station" to see the current one.
 
   Feedback
     New stamp        : two rising beeps
@@ -28,7 +39,7 @@
     Goes back to the network used last time, then tries the others it knows
     (secrets.h: BUNDAOBUNTAI, OhmPatumwan). Reconnects by itself if the hotspot drops.
     Pick one by hand: type "scan" then "join 2" in the Serial Monitor, or hold BOOT
-    at power-on and use the phone setup page (Wi-Fi "WishBand-place", pw wishband123).
+    at power-on and use the phone setup page (Wi-Fi "WishBand-<id>", pw wishband123).
 
   Setup
     1. Copy secrets.example.h to secrets.h in this folder and fill it in.
@@ -45,9 +56,7 @@
 */
 
 // ---------------------------------------------------------------- station
-#define STATION_ID    "place"        // must match lib/data/stations.js on the server
-#define STATION_NAME  "Seongsan Ilchulbong"
-#define FW_VERSION    "2.1.0"
+#define FW_VERSION    "2.2.0"
 
 // 0 = MFRC522 (SPI), 1 = PN532 (I2C)
 #define USE_PN532 0
@@ -64,6 +73,11 @@
   #include "secrets.example.h"
 #endif
 #include "wifi_setup.h"
+#include <Preferences.h>
+
+#ifndef STATION_ID
+  #define STATION_ID "food"           // first-boot default; change it later with "station <id>"
+#endif
 
 #if USE_PN532
   #include <Wire.h>
@@ -81,6 +95,87 @@
 
 #define BUZZER_PIN 4
 #define LED_PIN    2
+
+// ---------------------------------------------------------------- station id
+// Same ids, names and route order as lib/data/stations.js on the server.
+struct KnownStation { const char* id; const char* name; int blinks; };
+const KnownStation KNOWN_STATIONS[] = {
+  { "place",    "Seongsan Ilchulbong",        1 },
+  { "food",     "Dongmun Traditional Market", 2 },
+  { "activity", "Haenyeo Museum",             3 },
+};
+const int KNOWN_COUNT = sizeof(KNOWN_STATIONS) / sizeof(KNOWN_STATIONS[0]);
+
+String stationId = STATION_ID;
+
+int knownIndex(const String& id) {
+  for (int i = 0; i < KNOWN_COUNT; i++) if (id == KNOWN_STATIONS[i].id) return i;
+  return -1;
+}
+String stationName() { int i = knownIndex(stationId); return i >= 0 ? KNOWN_STATIONS[i].name : "Custom station"; }
+int stationBlinks()  { int i = knownIndex(stationId); return i >= 0 ? KNOWN_STATIONS[i].blinks : 4; }
+
+// Ids are short lowercase words (a-z, 0-9, - and _), like the ones in stations.js.
+bool validStationId(const String& id) {
+  if (id.length() == 0 || id.length() > 24) return false;
+  for (unsigned i = 0; i < id.length(); i++) {
+    char c = id[i];
+    if (!(isdigit(c) || (c >= 'a' && c <= 'z') || c == '-' || c == '_')) return false;
+  }
+  return true;
+}
+
+void loadStationId() {
+  Preferences p;
+  p.begin("station", true);
+  String saved = p.getString("id", "");
+  p.end();
+  if (validStationId(saved)) stationId = saved;
+}
+
+// Saves the new id and restarts, so the Wi-Fi name, heartbeat and logs all use it.
+void setStationId(String id) {
+  id.trim();
+  id.toLowerCase();
+  if (!validStationId(id)) { Serial.println("❌ Station id: lowercase letters, digits, - or _ (e.g. place, food, activity)."); return; }
+  Preferences p;
+  p.begin("station", false);
+  p.putString("id", id);
+  p.end();
+  Serial.printf("💾 This board is now station \"%s\". Restarting…\n", id.c_str());
+  if (knownIndex(id) < 0) Serial.println("   (not one of place/food/activity: make sure lib/data/stations.js has it)");
+  delay(500);
+  ESP.restart();
+}
+
+void blinkStationNumber() {
+  for (int i = 0; i < stationBlinks(); i++) { digitalWrite(LED_PIN, HIGH); delay(220); digitalWrite(LED_PIN, LOW); delay(260); }
+}
+
+// "This station" picker on the phone setup page (wifi_setup.h calls these).
+void portalStationHtml(String& h) {
+  h += F("<h2 style='font-size:1.1rem;margin-top:22px'>This station</h2><form method=post action=/station>");
+  for (int i = 0; i < KNOWN_COUNT; i++) {
+    h += "<label class=n><input type=radio name=id value=" + String(KNOWN_STATIONS[i].id) + (stationId == KNOWN_STATIONS[i].id ? " checked" : "") + ">";
+    h += "<span style=flex:1>" + String(KNOWN_STATIONS[i].id) + "</span><small>" + KNOWN_STATIONS[i].name + "</small></label>";
+  }
+  bool custom = knownIndex(stationId) < 0;
+  h += "<label class=n><input type=radio name=id value=custom" + String(custom ? " checked" : "") + "><span style=flex:1>other id</span>";
+  h += "<input name=custom style='width:9em;padding:8px;border-radius:10px;border:2px solid #E6E3DD' value=\"" + (custom ? WifiSetup::htmlEscape(stationId) : String("")) + "\"></label>";
+  h += F("<button>Save station &amp; restart</button></form>");
+}
+
+void portalStationRoutes(WebServer& web) {
+  web.on("/station", HTTP_POST, [&web]() {
+    String id = web.arg("id") == "custom" ? web.arg("custom") : web.arg("id");
+    id.trim(); id.toLowerCase();
+    if (!validStationId(id)) { WifiSetup::portalMessage = "Station id must be lowercase letters, digits, - or _."; web.sendHeader("Location", "/"); web.send(303); return; }
+    web.send(200, "text/html", "<meta name=viewport content='width=device-width'><body style='font-family:system-ui;padding:18px'>"
+                               "Saved: this board is now station <b>" + id + "</b>. It restarts now; rejoin Wi-Fi \"WishBand-" + id + "\" if you need this page again.</body>");
+    delay(300);
+    setStationId(id);
+  });
+}
 
 // ---------------------------------------------------------------- state
 const char* WIFI_SSIDS[] = WIFI_SSID_LIST;
@@ -123,7 +218,9 @@ void soundSos() {   // unlike any other sound: six high-low siren swings with th
 // ---------------------------------------------------------------- Wi-Fi
 void setupWifi() {
   for (int i = 0; i < WIFI_COUNT; i++) WifiSetup::addBuiltIn(WIFI_SSIDS[i], WIFI_PASSWORD);
-  WifiSetup::begin("WishBand-" STATION_ID);
+  WifiSetup::portalExtraHtml = portalStationHtml;
+  WifiSetup::portalExtraRoutes = portalStationRoutes;
+  WifiSetup::begin("WishBand-" + stationId);
 }
 
 bool ensureWifi() { return WifiSetup::loop(); }
@@ -131,8 +228,12 @@ bool ensureWifi() { return WifiSetup::loop(); }
 void handleSerial() {
   if (!Serial.available()) return;
   String cmd = Serial.readStringUntil('\n');
+  cmd.trim();
+  if (cmd == "station") { Serial.printf("📍 This board is station \"%s\" (%s)\n", stationId.c_str(), stationName().c_str()); return; }
+  if (cmd.startsWith("station ")) { setStationId(cmd.substring(8)); return; }
+  if (cmd == "help" || cmd == "?") Serial.println("Station: station | station <place|food|activity|other id>");
   if (!WifiSetup::handleCommand(cmd) && cmd.length() > 1)
-    Serial.println("Commands: scan | join <n> [password] | join Name,password | saved | forget | portal | wifi");
+    Serial.println("Commands: station [id] | scan | join <n> [password] | join Name,password | saved | forget | portal | wifi");
 }
 
 // ---------------------------------------------------------------- HTTP
@@ -153,7 +254,7 @@ int postJson(const String& path, const String& body, String& response) {
 
 // Sends one tap. Returns false if it should be retried later.
 bool sendCheckin(const String& uid, bool live) {
-  String body = String("{\"uid\":\"") + uid + "\",\"station\":\"" STATION_ID "\",\"ip\":\"" +
+  String body = String("{\"uid\":\"") + uid + "\",\"station\":\"" + stationId + "\",\"ip\":\"" +
                 WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}";
   String res;
   int code = postJson("/api/checkin", body, res);
@@ -178,7 +279,7 @@ bool sendCheckin(const String& uid, bool live) {
 // Asks the help desk for an SOS for this band. ageSec = how long ago the taps happened (queued while offline).
 // Returns false if it should be retried later.
 bool sendSos(const String& uid, unsigned long ageSec) {
-  String body = String("{\"uid\":\"") + uid + "\",\"station\":\"" STATION_ID "\",\"taps\":" + String(SOS_TAPS) +
+  String body = String("{\"uid\":\"") + uid + "\",\"station\":\"" + stationId + "\",\"taps\":" + String(SOS_TAPS) +
                 ",\"ageSec\":" + String(ageSec) + ",\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}";
   String res;
   int code = postJson("/api/sos/band", body, res);
@@ -223,7 +324,7 @@ void flushQueue() {
 }
 
 void sendHeartbeat() {
-  String body = String("{\"station\":\"" STATION_ID "\",\"fw\":\"" FW_VERSION "\",\"ssid\":\"") + WiFi.SSID() +
+  String body = "{\"station\":\"" + stationId + "\",\"fw\":\"" FW_VERSION "\",\"ssid\":\"" + WiFi.SSID() +
                 "\",\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}";
   String res;
   postJson("/api/stations/heartbeat", body, res);
@@ -315,9 +416,11 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   Serial.println("\n==============================================");
-  Serial.println("🌋 Jeju wish-band · " STATION_NAME);
-  Serial.println("   station id: " STATION_ID "   fw " FW_VERSION);
+  loadStationId();
+  Serial.println("🌋 Jeju wish-band · Stamp station · " + stationName());
+  Serial.println("   station id: " + stationId + "   fw " FW_VERSION + "   (change: station <id>)");
   Serial.println("==============================================");
+  blinkStationNumber();
 
   setupReader();
   setupWifi();

@@ -12,3 +12,8 @@
 
 // Leave empty unless STATION_KEY is set on the server
 #define STATION_KEY    ""
+
+// Station id used on the very first boot (place | food | activity, or another id from
+// lib/data/stations.js). After that the board keeps the id you set with "station <id>"
+// in the Serial Monitor or on the phone setup page, so one secrets.h fits every station.
+#define STATION_ID     "food"
