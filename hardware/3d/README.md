@@ -35,7 +35,7 @@ Both devices also need an ESP32 DevKitC, a 12 mm buzzer on GPIO 4, a 5 mm LED on
 
 1. Push the buzzer and LED into their tubes under the top.
 2. Stick the reader board into its frame with foam tape.
-3. Clip the ESP32 into its cradle with the USB port facing the opening.
+3. Solder the wires straight onto the ESP32 pins first: the board sits 9 mm above the plate with its pins down, which is too low for jumper-wire plugs. Then set it on its cradle with the USB port at the opening and hold it with foam tape or hot glue.
 4. Close the enclosure with four M3 screws and add the rubber feet.
 
 ## Assumed sizes (check yours before printing)
