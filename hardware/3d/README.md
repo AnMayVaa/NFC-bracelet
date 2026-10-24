@@ -19,7 +19,7 @@ Printable 3D enclosures for the two Jeju wish-band devices: the **admin desk uni
 | Device | Firmware | Parts to print | Outside size (mm) |
 |---|---|---|---|
 | Admin desk unit | `firmware/admin` (ESP32 + PN532 over I2C) | `admin_shell.stl` or `admin_shell_flat.stl` (tangerine), `admin_bottom_plate.stl` (basalt grey) | 110 × 90 × 55.6, top sloped 18° |
-| Check-in station | `firmware/stamp` (ESP32 + RC522) | `station_base.stl` (basalt grey), `station_lid.stl` (cream) | 100 × 76 × 43 |
+| Check-in station | `firmware/food`, `place`, `activity` or `stamp` (ESP32 + RC522) | `station_base.stl` (basalt grey), `station_lid.stl` (cream) | 100 × 76 × 43 |
 
 Both devices also need an ESP32 DevKitC, a 12 mm buzzer on GPIO 4, a 5 mm LED on GPIO 2, four M3 self-tapping screws and four Ø10 rubber feet.
 

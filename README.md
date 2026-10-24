@@ -7,7 +7,8 @@ A smart basalt-bead wristband for Jeju visitors. Tap the band on a phone to open
 | 📱 Tourist app (`/<UID>`) | **For You**: one-tap diet setup, stamp progress strip, live weather card, map + AI picks (diet-safe, weather-aware, boosts local and quiet spots) · **Stamps**: road route map, passport, 4,000 KRW Dongmun Market voucher · **SOS**: hold-to-send SOS, Korean hotlines, your embassy or consulate, Helping Map, help near you · **Me**: any nationality (flag, name in any script), international emergency contact, language (English, 한국어, 中文, 日本語, ไทย) and dark mode |
 | 🏢 Admin desk (`/admin`) | Issue and register bands, write NFC tags, SOS queue (acknowledge, dispatch, resolve), station health, live log, evaluation metrics, **Demo control** (load a mock story, play each journey step for one band, clear SOS / stamps / guests, download a backup, delete everything) |
 | 📟 `firmware/admin` | ESP32 + PN532 desk reader: reads the tag, writes the tourist link, reports to the admin desk |
-| 🍊🗿🌊 `firmware/stamp` | One ESP32 stamp-station sketch for every food, place and activity station (MFRC522 by default, PN532 optional). Each board is told which station it is (`station food` in the Serial Monitor or the phone setup page) and each tap gives a stamp of that kind |
+| 🍊 `firmware/food` · 🗿 `firmware/place` · 🌊 `firmware/activity` | ESP32 stations (MFRC522 by default, PN532 optional): each tap gives a stamp of that kind |
+| 🍊🗿🌊 `firmware/stamp` | Optional all-in-one version of the three station sketches: one sketch, and each board is told which station it is (`station food` in the Serial Monitor or the phone setup page) |
 
 ---
 
@@ -73,7 +74,7 @@ lib/
 server.js            local server: shared app + static files + WebSocket
 api/index.js         Vercel serverless entry (same app)
 public/              tourist app (index.html, app.js), admin desk (admin.html, admin.js), shared style.css
-firmware/            admin desk sketch, stamp station sketch (+ tools/ RC522 diagnostic)
+firmware/            admin, food, place, activity sketches, stamp (all-in-one station) (+ tools/ RC522 diagnostic)
 supabase/schema.sql  tables + views to paste into the Supabase SQL Editor
 test/                node --test unit tests
 ```
@@ -133,7 +134,7 @@ Tap the same wish-band **5 times within about 10 s (12 s allowed)** on any food,
 
 ### Adding things later
 
-- **New station** (for example a second food stall): add an entry to `lib/data/stations.js` with a new `id` and `kind`, flash `firmware/stamp` to a new board and type `station <new id>` in its Serial Monitor (or pick "other id" on its phone setup page). The app, admin desk and voucher rule pick it up automatically.
+- **New station** (for example a second food stall): add an entry to `lib/data/stations.js` with a new `id` and `kind`, copy `firmware/food` to a new folder and change `STATION_ID`, or flash `firmware/stamp` and type `station <new id>` in its Serial Monitor. The app, admin desk and voucher rule pick it up automatically.
 - **New stamp kind**: add it to `STATION_KINDS`. The voucher needs one stamp of every kind listed in `REWARD.requiredKinds`.
 - **New language**: add a block to `public/i18n.js` and an entry in `LANGS`. Missing keys fall back to English. The app ships English, Korean, Chinese, Japanese, Thai, French, German, Spanish, Italian, Portuguese and Russian; the last six are machine translations that a native speaker should check.
 - **New recommendation**: add an item to `lib/data/catalog.js` (with `interests`, `effort`, `wiki` titles for the photo, and `source`, `address`, `good`, `check` in `EXTRA`). Only add dietary tags that are verified; untagged food is hidden from anyone with a restriction.
@@ -182,14 +183,12 @@ Old firmware ids `checkpoint1` / `checkpoint2` still work (they map to `place` /
 Each folder is a normal Arduino sketch. Board: **ESP32 Dev Module**, 115200 baud. Libraries: **MFRC522** (GithubCommunity) and **Adafruit PN532**.
 
 1. In each sketch folder, copy `secrets.example.h` to `secrets.h` and fill in Wi-Fi. `secrets.h` is git-ignored.
-2. Flash `admin` to the desk ESP32, and `stamp` to every station (firmware 2.2.0; 2.1.0 added the 5-tap SOS).
-3. Tell each station board which station it is, once. It is saved in flash and survives power-off and re-flashing:
+2. Flash `admin` to the desk ESP32, and `food`, `place`, `activity` to the three stations (firmware 2.1.0 adds the 5-tap SOS).
+3. Or flash `stamp` (firmware 2.2.0, same behaviour) to every station instead, and tell each board which station it is, once. It is saved in flash and survives power-off and re-flashing:
    - Serial Monitor (115200, Newline): `station place`, `station food` or `station activity` (any other id from `lib/data/stations.js` works too). `station` alone shows the current one.
    - Or on the phone setup page (below): pick it under **This station** and tap *Save station & restart*.
    - A new board starts as `STATION_ID` from `secrets.h` (default `food`).
    - At power-on the LED blinks the station number: 1 = place, 2 = food, 3 = activity, 4 = another id.
-
-Before 2.2.0 there were three copies of this sketch (`firmware/food`, `place`, `activity`). They are replaced by `firmware/stamp`; a board flashed with an old copy keeps working.
 
 ### Wi-Fi (`wifi_setup.h`, same file in every sketch)
 
