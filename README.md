@@ -239,6 +239,8 @@ Buzzer (+) → GPIO 4, LED (+) → GPIO 2 on every board.
 
 Reader not found? Flash `firmware/tools/test_rc522_diagnostic` first.
 
+Resets with `E BOD: Brownout detector was triggered` right after the reader starts? The board is not getting enough current when Wi-Fi turns on. Use a short data USB cable straight into the computer or a 5 V / 2 A adapter (not a hub), power a PN532 from the 5V (VIN) pin instead of 3V3, and add a 470–1000 µF capacitor across 5V and GND. The firmware already starts Wi-Fi at 15 dBm to lower the spike; if it still resets, add `#define WIFI_TX_POWER WIFI_POWER_8_5dBm` to `secrets.h`.
+
 ---
 
 ## 4. Critical Real-World Limitations & How to Overcome Them

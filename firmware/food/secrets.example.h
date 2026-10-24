@@ -12,3 +12,7 @@
 
 // Leave empty unless STATION_KEY is set on the server
 #define STATION_KEY    ""
+
+// Optional: Wi-Fi transmit power (default WIFI_POWER_15dBm, see wifi_setup.h).
+// Lower it if the board resets with "Brownout detector was triggered".
+// #define WIFI_TX_POWER WIFI_POWER_8_5dBm

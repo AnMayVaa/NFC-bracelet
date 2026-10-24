@@ -29,6 +29,16 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 
+// Wi-Fi transmit power. The radio's start-up current spike can trip the ESP32's
+// brownout detector ("E BOD: Brownout detector was triggered" reset loop) on a weak
+// USB cable/port or when a PN532 also hangs off the 3V3 pin. 15 dBm is plenty for a
+// hotspot in the same room. Override in secrets.h, e.g.
+//   #define WIFI_TX_POWER WIFI_POWER_19_5dBm   (full range)
+//   #define WIFI_TX_POWER WIFI_POWER_8_5dBm    (still browning out)
+#ifndef WIFI_TX_POWER
+  #define WIFI_TX_POWER WIFI_POWER_15dBm
+#endif
+
 namespace WifiSetup {
 
 const int MAX_SAVED = 5;
@@ -270,6 +280,7 @@ void handleForget() {
 void startPortal() {
   if (portalOn) { printStatus(); return; }
   WiFi.mode(WIFI_AP_STA);
+  WiFi.setTxPower(WIFI_TX_POWER);
   WiFi.softAP(deviceName.c_str(), PORTAL_PASSWORD);
   dns = new DNSServer();
   dns->start(53, "*", WiFi.softAPIP());          // most phones pop the page up automatically
@@ -306,6 +317,7 @@ void begin(const String& name) {
   pinMode(BOOT_BUTTON, INPUT_PULLUP);
   loadSaved();
   WiFi.mode(WIFI_STA);
+  WiFi.setTxPower(WIFI_TX_POWER);
   WiFi.setAutoReconnect(true);
   WiFi.persistent(false);
 

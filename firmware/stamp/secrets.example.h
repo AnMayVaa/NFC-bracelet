@@ -13,6 +13,10 @@
 // Leave empty unless STATION_KEY is set on the server
 #define STATION_KEY    ""
 
+// Optional: Wi-Fi transmit power (default WIFI_POWER_15dBm, see wifi_setup.h).
+// Lower it if the board resets with "Brownout detector was triggered".
+// #define WIFI_TX_POWER WIFI_POWER_8_5dBm
+
 // Station id used on the very first boot (place | food | activity, or another id from
 // lib/data/stations.js). After that the board keeps the id you set with "station <id>"
 // in the Serial Monitor or on the phone setup page, so one secrets.h fits every station.
