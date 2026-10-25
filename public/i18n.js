@@ -1082,11 +1082,28 @@ function applyI18n(root = document) {
   root.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
 }
 
-function setLang(code) {
+// auto = chosen from the tourist's nationality; a language picked by hand is never replaced by that
+function setLang(code, { auto = false } = {}) {
   if (!I18N[code]) return;
   LANG = code;
-  try { localStorage.setItem('wb-lang', code); } catch (_) {}
+  try {
+    localStorage.setItem('wb-lang', code);
+    localStorage.setItem('wb-lang-src', auto ? 'auto' : 'hand');
+  } catch (_) {}
   applyI18n();
+}
+
+function langPickedByHand() {
+  try { return !!localStorage.getItem('wb-lang') && localStorage.getItem('wb-lang-src') !== 'auto'; } catch (_) { return false; }
+}
+
+// Switch to the nationality's language (English when the app has no translation). Returns true if it changed.
+function langFromCountry(iso) {
+  if (!iso || langPickedByHand() || typeof CountryFormat === 'undefined') return false;
+  const code = CountryFormat.langForCountry(iso);
+  if (code === LANG) return false;
+  setLang(code, { auto: true });
+  return true;
 }
 
 // Theme: light by default, remembered per device

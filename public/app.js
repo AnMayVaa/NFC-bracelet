@@ -617,6 +617,7 @@ function showOnboarding() {
   const ph = splitPhone(tr.emergencyContact, code || 'KR');
   $('#obDial').innerHTML = dialOptions(ph.code || code || 'KR');
   $('#obSos').value = ph.number;
+  formatPhoneField($('#obSos'), '#obDial');
   syncPickers();
   const parts = String(tr.dietary || '').split(',').map(x => x.trim()).filter(x => x && x.toLowerCase() !== 'none');
   ob.diet = new Set(parts.filter(p => DIET_TAGS.includes(p)));
@@ -669,7 +670,7 @@ async function onboardNext() {
       mobility: ob.mobility,
       dietary: [...ob.diet, ...other].join(', ') || 'None',
       medicalNotes: $('#obMedical').value.trim(),
-      emergencyContact: `+${dial} ${number}`,
+      emergencyContact: fullPhone($('#obDial').value, number),
       emergencyName: $('#obSosName').value.trim(),
       emergencyRelation: $('#obSosRel').value,
       onboarded: true
@@ -1013,6 +1014,44 @@ function splitPhone(phone, fallbackCode) {
   return { code: best, number: digits.slice(dial[best].length) };
 }
 
+// Space the number the way the chosen country writes it, keeping the caret after the same digit
+function formatPhoneField(input, dialSel) {
+  const iso = $(dialSel).value;
+  const dial = state.config?.dialCodes?.[iso];
+  input.placeholder = CountryFormat.phoneSample(iso, dial) || '812 345 678';
+  const before = input.value;
+  const caret = input.selectionStart ?? before.length;
+  const digitsBefore = before.slice(0, caret).replace(/\D/g, '').length;
+  const after = CountryFormat.formatPhone(before, iso, dial);
+  if (after === before) return;
+  input.value = after;
+  if (document.activeElement !== input) return;
+  let pos = 0;
+  for (let seen = 0; pos < after.length && seen < digitsBefore; pos++) if (/\d/.test(after[pos])) seen++;
+  input.setSelectionRange(pos, pos);
+}
+function bindPhoneField(inputSel, dialSel) {
+  const input = $(inputSel);
+  input.addEventListener('input', () => formatPhoneField(input, dialSel));
+  $(dialSel).addEventListener('change', () => formatPhoneField(input, dialSel));
+}
+// What gets saved: "+66 81 234 5678"
+const fullPhone = (iso, number) => {
+  const dial = state.config.dialCodes[iso];
+  return `+${dial} ${CountryFormat.formatPhone(number, iso, dial)}`;
+};
+
+// A nationality picked in setup switches the app to that language right away (unless one was picked by hand)
+function langFollowCountry(countrySel, dialSel) {
+  const iso = $(countrySel).value;
+  if (!langFromCountry(iso)) return;
+  $(countrySel).innerHTML = countryOptions(iso);
+  const dial = $(dialSel).value;
+  $(dialSel).innerHTML = dialOptions(dial);
+  syncPickers();
+  rerenderAll();
+}
+
 function openEdit() {
   const tr = state.tourist;
   const code = tr.countryCode || '';
@@ -1024,6 +1063,7 @@ function openEdit() {
   const ph = splitPhone(tr.emergencyContact, code || 'KR');
   $('#inDial').innerHTML = dialOptions(ph.code || code || 'KR');
   $('#inSos').value = ph.number;
+  formatPhoneField($('#inSos'), '#inDial');
   syncPickers();
   const parts = String(tr.dietary || '').split(',').map(s => s.trim()).filter(s => s && s.toLowerCase() !== 'none');
   const known = DIET_TAGS.map(s => s.toLowerCase());
@@ -1045,7 +1085,7 @@ async function saveProfile() {
   const dietary = [...picked, ...other].join(', ') || 'None';
   const number = $('#inSos').value.replace(/[^\d]/g, '').replace(/^0+/, '');   // drop the trunk 0 for international format
   const dial = state.config.dialCodes[$('#inDial').value];
-  const phone = number ? `+${dial} ${number}` : '';
+  const phone = number ? fullPhone($('#inDial').value, number) : '';
   if (number && (number.length + dial.length < 6 || number.length + dial.length > 15)) return toast(t('edit.badPhone'), 'warn');
   const name = $('#inName').value.trim();
   $('#btnSave').disabled = true;
@@ -1061,6 +1101,7 @@ async function saveProfile() {
       emergencyContact: phone, emergencyName: $('#inSosName').value.trim(), emergencyRelation: $('#inSosRel').value
     });
     state.tourist = { ...state.tourist, ...r.tourist };
+    if (langFromCountry(state.tourist.countryCode)) rerenderAll();
     renderProfile();
     closeSheets();
     toast(t('edit.saved'), 'good');
@@ -1198,7 +1239,11 @@ function bindEvents() {
   $('#obNext').addEventListener('click', onboardNext);
   $('#obBack').addEventListener('click', () => { if (ob.step > 1) { ob.step--; renderOnboarding(); } });
   $('#obLang').addEventListener('click', () => openSheet('#sheetLang'));
-  $('#obCountry').addEventListener('change', () => { if (!$('#obSos').value.trim() && $('#obCountry').value) { $('#obDial').value = $('#obCountry').value; syncPicker($('#obDial')); } });
+  $('#obCountry').addEventListener('change', () => {
+    if (!$('#obSos').value.trim() && $('#obCountry').value) { $('#obDial').value = $('#obCountry').value; syncPicker($('#obDial')); formatPhoneField($('#obSos'), '#obDial'); }
+    langFollowCountry('#obCountry', '#obDial');
+  });
+  bindPhoneField('#obSos', '#obDial');
   $('#interestPicks').addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.classList.toggle('on'); });
 
   // A photo that fails to load turns back into the emoji tile
@@ -1262,7 +1307,8 @@ function bindEvents() {
   $('#btnSave').addEventListener('click', saveProfile);
   $('#dietPicks').addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.classList.toggle('on'); });
   // Picking a nationality also sets the phone country code when the number is still empty
-  $('#inCountry').addEventListener('change', () => { if (!$('#inSos').value.trim() && $('#inCountry').value) { $('#inDial').value = $('#inCountry').value; syncPicker($('#inDial')); } });
+  $('#inCountry').addEventListener('change', () => { if (!$('#inSos').value.trim() && $('#inCountry').value) { $('#inDial').value = $('#inCountry').value; syncPicker($('#inDial')); formatPhoneField($('#inSos'), '#inDial'); } });
+  bindPhoneField('#inSos', '#inDial');
 
   $$('.sheet-backdrop').forEach(s => s.addEventListener('click', e => {
     if (e.target === s || e.target.closest('[data-close]')) closeSheets();
@@ -1305,6 +1351,7 @@ function bindEvents() {
   try {
     state.config = await api('/api/config');
     await loadTourist({ celebrate: false });
+    if (langFromCountry(state.tourist.countryCode)) rerenderAll();
     renderTapTip();
     if (!state.tourist.onboardedAt) showOnboarding();
     else maybeAskTrial();
