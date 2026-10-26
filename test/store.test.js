@@ -47,7 +47,8 @@ test('Supabase store round-trips tourists and SOS alerts and writes only changes
   try {
     const a = createSupabaseStore({ url: fake.url, key: 'secret' });
     await a.refresh();
-    const t = core.newGuest('BAND1', { name: 'Mina' });
+    const t = core.newGuest('BAND1');
+    t.name = 'Mina';   // an old record that still has a profile field
     core.recordCheckin(t, 'food');
     a.load().tourists.BAND1 = t;
     a.load().tourists.BAND2 = core.newGuest('BAND2');
@@ -56,7 +57,8 @@ test('Supabase store round-trips tourists and SOS alerts and writes only changes
     await a.save();
 
     const row = fake.tables.tourists.get('BAND1');
-    assert.strictEqual(row.name, 'Mina');
+    assert.strictEqual(row.name, null, 'profile never reaches Supabase');
+    assert.ok(!('name' in row.data));
     assert.strictEqual(row.stamps, 1);
     assert.strictEqual(fake.tables.sos_alerts.get(alert.alertId).status, 'PENDING');
 

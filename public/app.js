@@ -565,10 +565,45 @@ function showOnMap(id) {
   setTimeout(() => m.openPopup(), 650);
 }
 
+// ------------------------------------------------------------------ profile on this phone
+// Name, nationality, language, diet, health, interests and emergency contact never leave the phone,
+// except inside an SOS. The server only knows the band: stamps, voucher and station taps.
+const PROFILE_KEYS = ['name', 'countryCode', 'language', 'dietary', 'emergencyContact', 'emergencyName', 'emergencyRelation',
+  'interests', 'mobility', 'medicalNotes', 'onboardedAt'];
+const profileStoreKey = () => `wb-profile:${state.uid}`;
+
+function myProfile() {
+  try { return JSON.parse(storeGet(profileStoreKey()) || '{}') || {}; } catch (_) { return {}; }
+}
+
+function saveMyProfile(fields) {
+  const p = { ...myProfile() };
+  for (const k of PROFILE_KEYS) if (k in fields) p[k] = fields[k];
+  p.updatedAt = new Date().toISOString();
+  try { localStorage.setItem(profileStoreKey(), JSON.stringify(p)); }
+  catch (_) { throw new Error(t('privacy.noStorage')); }
+  state.tourist = { ...state.tourist, ...p };
+  return state.tourist;
+}
+
+function forgetMyProfile() {
+  try { localStorage.removeItem(profileStoreKey()); } catch (_) {}
+  for (const k of PROFILE_KEYS) delete state.tourist[k];
+}
+
+// The parts of the profile an SOS carries to the help desk.
+function sosCard() {
+  const p = myProfile();
+  const out = {};
+  for (const k of ['name', 'emergencyContact', 'emergencyName', 'emergencyRelation', 'medicalNotes', 'mobility', 'countryCode', 'language', 'dietary'])
+    if (typeof p[k] === 'string' && p[k]) out[k] = p[k];
+  return out;
+}
+
 // ------------------------------------------------------------------ data loading
 async function loadTourist({ celebrate = true } = {}) {
   const before = state.tourist;
-  const tr = await api(`/api/tourist/${encodeURIComponent(state.uid)}`);
+  const tr = { ...(await api(`/api/tourist/${encodeURIComponent(state.uid)}`)), ...myProfile() };
   state.tourist = tr;
 
   const newStamps = before ? Object.keys(tr.stamps || {}).filter(k => tr.stamps[k] && !before.stamps?.[k]) : [];
@@ -589,6 +624,11 @@ async function loadTourist({ celebrate = true } = {}) {
 
 async function loadRecs() {
   const q = new URLSearchParams({ uid: state.uid, category: state.category });
+  // Used for this answer only; the server does not keep them.
+  const me = state.tourist || {};
+  if (me.interests?.length) q.set('interests', me.interests.join(','));
+  if (me.dietary) q.set('dietary', me.dietary);
+  if (me.mobility) q.set('mobility', me.mobility);
   if (state.today.size) q.set('today', [...state.today].join(','));
   if (state.origin) { q.set('lat', state.origin.lat); q.set('lng', state.origin.lng); }
   try {
@@ -662,10 +702,9 @@ async function onboardNext() {
   const name = $('#obName').value.trim();
   $('#obNext').disabled = true;
   try {
-    const r = await api('/api/register', {
-      uid: state.uid,
+    saveMyProfile({
       ...(name ? { name } : {}),
-      countryCode: country,
+      countryCode: country, language: state.tourist.language || 'English',
       interests: [...ob.interests],
       mobility: ob.mobility,
       dietary: [...ob.diet, ...other].join(', ') || 'None',
@@ -673,9 +712,8 @@ async function onboardNext() {
       emergencyContact: fullPhone($('#obDial').value, number),
       emergencyName: $('#obSosName').value.trim(),
       emergencyRelation: $('#obSosRel').value,
-      onboarded: true
+      onboardedAt: state.tourist.onboardedAt || new Date().toISOString()
     });
-    state.tourist = { ...state.tourist, ...r.tourist };
     $('#onboard').classList.add('hidden');
     document.body.classList.remove('no-scroll');
     renderProfile();
@@ -757,7 +795,7 @@ async function sendSurvey() {
   if (Object.values(survey).some(v => !v)) { $('#surveyErr').textContent = t('survey.err'); return; }
   $('#btnSurveySend').disabled = true;
   try {
-    const r = await api('/api/trial/survey', { uid: state.uid, ...survey, comment: $('#surveyComment').value.trim() });
+    const r = await api('/api/trial/survey', { uid: state.uid, ...survey, comment: $('#surveyComment').value.trim(), country: state.tourist.countryCode || undefined });
     state.tourist.trial = r.trial;
     renderTrial();
     closeSheets();
@@ -861,7 +899,7 @@ async function sendSos() {
   try { pos = await getPosition(); } catch (_) {}
   try {
     const r = await api('/api/sos', {
-      uid: state.uid, note: $('#sosNote').value.trim() || undefined,
+      uid: state.uid, note: $('#sosNote').value.trim() || undefined, profile: sosCard(),
       latitude: pos?.lat, longitude: pos?.lng, accuracy: pos?.accuracy
     });
     renderSos(r.alert);
@@ -886,8 +924,7 @@ function getPosition() {
 async function shareLocation() {
   try {
     const pos = await getPosition();
-    state.origin = pos;
-    await api('/api/location', { uid: state.uid, ...pos });
+    state.origin = pos;   // used for nearby picks; not sent to the server
     toast(t('loc.saved'), 'good');
     return pos;
   } catch (e) {
@@ -903,7 +940,6 @@ async function autoLocate() {
     if (perm?.state !== 'granted') return;
     const pos = await getPosition();
     state.origin = pos;
-    api('/api/location', { uid: state.uid, ...pos }).catch(() => {});
     $('#recWhy').dataset.i18n = 'picks.near';
     $('#recWhy').textContent = t('picks.near');
     loadRecs();
@@ -1079,6 +1115,15 @@ function openEdit() {
   openSheet('#sheetEdit');
 }
 
+function forgetMe() {
+  if (!confirm(t('privacy.confirm'))) return;
+  forgetMyProfile();
+  closeSheets();
+  renderProfile();
+  toast(t('privacy.gone'), 'good');
+  showOnboarding();
+}
+
 async function saveProfile() {
   const picked = $$('#dietPicks .on').map(b => b.dataset.diet);
   const other = $('#inDietOther').value.split(',').map(s => s.trim()).filter(Boolean);
@@ -1090,9 +1135,8 @@ async function saveProfile() {
   const name = $('#inName').value.trim();
   $('#btnSave').disabled = true;
   try {
-    const r = await api('/api/register', {
-      uid: state.uid,
-      ...(name ? { name } : {}),
+    saveMyProfile({
+      name,
       countryCode: $('#inCountry').value,
       language: $('#inLang').value, dietary,
       interests: $$('#interestPicks .on').map(b => b.dataset.int),
@@ -1100,7 +1144,6 @@ async function saveProfile() {
       medicalNotes: $('#inMedical').value.trim(),
       emergencyContact: phone, emergencyName: $('#inSosName').value.trim(), emergencyRelation: $('#inSosRel').value
     });
-    state.tourist = { ...state.tourist, ...r.tourist };
     if (langFromCountry(state.tourist.countryCode)) rerenderAll();
     renderProfile();
     closeSheets();
@@ -1304,6 +1347,7 @@ function bindEvents() {
   });
 
   $('#btnEdit').addEventListener('click', openEdit);
+  $('#btnForget')?.addEventListener('click', forgetMe);
   $('#btnSave').addEventListener('click', saveProfile);
   $('#dietPicks').addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.classList.toggle('on'); });
   // Picking a nationality also sets the phone country code when the number is still empty

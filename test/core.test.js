@@ -49,14 +49,14 @@ test('redeem is single use', () => {
 });
 
 test('halal diner never sees pork or untagged food', () => {
-  const t = core.newGuest('T5', { dietary: 'Halal' });
+  const t = { ...core.newGuest('T5'), dietary: 'Halal' };   // diet comes from the phone
   const foods = core.recommend(t, CATALOG, { category: 'food' });
   assert.ok(foods.length > 0);
   assert.ok(foods.every(f => (f.dietaryTags || []).includes('TAG_HALAL')));
 });
 
 test('unknown restriction fails closed for food', () => {
-  const t = core.newGuest('T6', { dietary: 'peanut allergy' });
+  const t = { ...core.newGuest('T6'), dietary: 'peanut allergy' };
   assert.strictEqual(core.recommend(t, CATALOG, { category: 'food' }).length, 0);
 });
 

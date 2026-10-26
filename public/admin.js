@@ -135,7 +135,9 @@ function renderSos(alerts) {
       ${a.trigger === 'band' ? `<div style="margin-top:6px"><span class="chip sos" style="white-space:normal">🖐️ Band-tap SOS · phone may be off</span></div>` : ''}
       <div style="font-size:.84rem;margin-top:6px">${esc(a.note)}</div>
       <div style="font-size:.8rem;margin-top:6px">${map}</div>
-      <div style="font-size:.8rem;margin-top:4px">☎️ ${esc(a.tourist.emergencyContact || 'no contact')} · 🗣️ ${esc(a.tourist.language)} · 🍽️ ${esc(a.tourist.dietary)}</div>
+      ${a.tourist.wiped ? '<div class="muted" style="font-size:.78rem;margin-top:4px">🔒 Case closed, personal details removed</div>'
+        : a.tourist.fromPhone === false || (!a.tourist.emergencyContact && a.trigger === 'band') ? '<div class="muted" style="font-size:.78rem;margin-top:4px">🔒 No profile: it stays on the tourist\'s phone. Go to the location shown.</div>'
+        : `<div style="font-size:.8rem;margin-top:4px">☎️ ${esc(a.tourist.emergencyContact || 'no contact')}${a.tourist.language ? ` · 🗣️ ${esc(a.tourist.language)}` : ''}${a.tourist.dietary ? ` · 🍽️ ${esc(a.tourist.dietary)}` : ''}</div>`}
       ${a.tourist.medicalNotes || (a.tourist.mobility && a.tourist.mobility !== 'none') ? `<div style="font-size:.8rem;margin-top:4px;color:var(--sos);font-weight:800">🩺 ${esc([a.tourist.mobility === 'wheelchair' ? 'Wheelchair user' : a.tourist.mobility === 'limited' ? 'Short walks only' : '', a.tourist.medicalNotes].filter(Boolean).join(' · '))}</div>` : ''}
       ${a.responder ? `<div style="font-size:.8rem;margin-top:4px">🚑 ${esc(a.responder)}${a.etaMinutes ? `, ETA ${a.etaMinutes} min` : ''}</div>` : ''}
       ${acts ? `<div class="acts">${acts}</div>` : ''}
@@ -158,7 +160,7 @@ function renderStations(list) {
 function renderRows(tourists) {
   const q = $('#search').value.trim().toLowerCase();
   const list = tourists
-    .filter(t => !q || t.uid.toLowerCase().includes(q) || (t.name || '').toLowerCase().includes(q))
+    .filter(t => !q || t.uid.toLowerCase().includes(q))
     .sort((a, b) => (b.lastCheckin?.timestamp || b.registeredAt || '').localeCompare(a.lastCheckin?.timestamp || a.registeredAt || ''));
   $('#bandCount').textContent = tourists.length;
   if (!list.length) {
@@ -171,13 +173,12 @@ function renderRows(tourists) {
     const vChip = { LOCKED: '<span class="chip">🔒 Locked</span>', UNLOCKED: '<span class="chip tan">🎁 Ready</span>', REDEEMED: '<span class="chip leaf">✅ Used</span>', EXPIRED: '<span class="chip">Expired</span>' }[v];
     const flash = flashed.has(t.uid) ? 'flash' : '';
     return `<tr class="${flash}">
-      <td><b>${esc(t.name)}</b><div class="muted" style="font-size:.74rem">${esc(t.country || '')} · ${esc(t.dietary || 'None')}</div></td>
+      <td><b>${esc(bandName(t.uid))}</b><div class="muted" style="font-size:.74rem">${t.depositPaid === false ? 'No deposit' : 'Deposit held'} · ${(t.checkinHistory || []).length} taps</div></td>
       <td class="mono" style="font-size:.78rem">${esc(t.uid)}</td>
       <td class="mini-stamps">${stamps}</td>
       <td>${vChip}</td>
       <td style="font-size:.78rem">${t.lastCheckin ? ago(t.lastCheckin.timestamp) : '–'}</td>
       <td><div class="row-acts">
-        <button class="icon-btn" title="Edit in form" data-act="edit" data-uid="${esc(t.uid)}">✏️</button>
         <button class="icon-btn" title="QR / link" data-act="qr" data-uid="${esc(t.uid)}">📱</button>
         ${config.demoMode ? config.stations.map(s => `<button class="icon-btn" title="Simulate ${esc(s.kind)} tap" data-act="tap" data-station="${s.id}" data-uid="${esc(t.uid)}">${config.kinds[s.kind].emoji}</button>`).join('') : ''}
         <button class="icon-btn" title="Reset stamps" data-act="reset" data-uid="${esc(t.uid)}">↺</button>
@@ -201,11 +202,11 @@ function renderStorage(kind) {
 function renderSimPicker(tourists) {
   const sel = $('#simUid');
   const current = sel.value;
-  const sig = tourists.map(t => t.uid + t.name).join('|');
+  const sig = tourists.map(t => t.uid).join('|');
   if (sel.dataset.sig !== sig) {
     sel.dataset.sig = sig;
     sel.innerHTML = tourists.length
-      ? [...tourists].sort((a, b) => a.uid.localeCompare(b.uid)).map(t => `<option value="${esc(t.uid)}">${esc(t.uid)} · ${esc(t.name)}</option>`).join('')
+      ? [...tourists].sort((a, b) => a.uid.localeCompare(b.uid)).map(t => `<option value="${esc(t.uid)}">${esc(t.uid)}${status?.demoNotes?.[t.uid] ? ' · ' + esc(status.demoNotes[t.uid]) : ''}</option>`).join('')
       : '<option value="">No wish-bands yet</option>';
     if (tourists.some(t => t.uid === current)) sel.value = current;
   }
@@ -281,36 +282,24 @@ function beep() {
 }
 
 // ------------------------------------------------------------------ form
-const DIETS = ['Halal', 'Vegan', 'Vegetarian', 'No Shellfish', 'Gluten-Free'];
+// Profiles live on the tourist's phone, so the desk only knows the band.
+const bandName = uid => `Wish-band ${uid.length > 8 ? uid.slice(0, 8) + '…' : uid}`;
 
 function fillForm(uid) {
   const t = status?.tourists.find(x => x.uid === uid);
   $('#rUid').value = uid;
-  if (!t) return;
-  $('#rName').value = t.name?.startsWith('Wish-band Guest') ? '' : (t.name || '');
-  $('#rCountry').value = t.country === 'Global Traveler' ? '' : (t.country || '');
-  $('#rLang').value = t.language || 'English';
-  $('#rSos').value = t.emergencyContact || '';
-  $('#rDeposit').checked = t.depositPaid !== false;
-  const parts = String(t.dietary || '').split(',').map(s => s.trim().toLowerCase());
-  $$('#rDiet button').forEach(b => b.classList.toggle('on', parts.includes(b.dataset.diet.toLowerCase())));
+  if (t) $('#rDeposit').checked = t.depositPaid !== false;
 }
 
 function bind() {
-  $('#rDiet').innerHTML = DIETS.map(d => `<button type="button" data-diet="${d}">${d}</button>`).join('');
-  $('#rDiet').addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.classList.toggle('on'); });
   $('#rUid').addEventListener('change', () => fillForm($('#rUid').value.trim().toUpperCase()));
 
   $('#formReg').addEventListener('submit', async e => {
     e.preventDefault();
     const uid = $('#rUid').value.trim().toUpperCase();
     try {
-      await api('/api/register', {
-        uid, name: $('#rName').value, country: $('#rCountry').value, language: $('#rLang').value,
-        dietary: $$('#rDiet .on').map(b => b.dataset.diet).join(', ') || 'None',
-        emergencyContact: $('#rSos').value, depositPaid: $('#rDeposit').checked
-      });
-      toast(`✅ ${uid} registered`, 'good');
+      await api('/api/register', { uid, depositPaid: $('#rDeposit').checked });
+      toast(`✅ ${uid} linked`, 'good');
       flashed.add(uid);
       refresh();
       showQr(uid);
@@ -330,7 +319,6 @@ function bind() {
     if (!b) return;
     const uid = b.dataset.uid;
     try {
-      if (b.dataset.act === 'edit') { fillForm(uid); window.scrollTo({ top: 0, behavior: 'smooth' }); }
       if (b.dataset.act === 'qr') showQr(uid);
       if (b.dataset.act === 'tap') {
         const r = await api('/api/demo/tap', { uid, station: b.dataset.station });

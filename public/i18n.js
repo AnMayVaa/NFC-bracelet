@@ -3,6 +3,7 @@
 // Missing keys fall back to English. {name} style placeholders are filled by t().
 const I18N = {
   en: {
+    'privacy.title': '🔒 Saved only on this phone', 'privacy.body': "Your name, nationality, diet, health notes, interests and emergency contact stay in this phone's browser. The wish-band server only keeps your stamps, voucher and the stations you tapped. If you send an SOS, the help desk sees your details until the case is closed.", 'privacy.forget': '🗑️ Delete my profile from this phone', 'privacy.confirm': 'Delete your profile from this phone? Your stamps and voucher stay on the wish-band.', 'privacy.gone': 'Profile deleted from this phone', 'privacy.noStorage': 'This browser cannot save your profile (private mode?). Please use a normal tab.',
     'sos.tapTitle': 'Phone dead?', 'sos.tapTip': 'Tap your wish-band {n} times quickly on any wish-band station. It flashes and sounds an alarm, and the help desk gets your SOS with that spot.',
     'redeem.shop': 'Shop', 'redeem.pickShop': 'Choose the shop',
     'trial.title': '🧪 Help our student study', 'trial.intro': 'We are students from KMUTNB, Thailand, testing Jeju wish-band with real travelers. Joining is optional and the app works the same either way.',
@@ -110,6 +111,7 @@ const I18N = {
     'pick.search': 'Type a country or +code', 'pick.none': 'No match'
   },
   ko: {
+    'privacy.title': '🔒 이 휴대폰에만 저장돼요', 'privacy.body': '이름, 국적, 식단, 건강 메모, 관심사, 비상 연락처는 이 휴대폰 브라우저에만 저장돼요. 서버에는 스탬프, 바우처, 태그한 스테이션만 남아요. SOS를 보내면 사건이 끝날 때까지 안내 데스크가 정보를 볼 수 있어요.', 'privacy.forget': '🗑️ 이 휴대폰에서 내 프로필 삭제', 'privacy.confirm': '이 휴대폰에서 프로필을 삭제할까요? 스탬프와 바우처는 위시밴드에 남아요.', 'privacy.gone': '이 휴대폰에서 프로필을 삭제했어요', 'privacy.noStorage': '이 브라우저는 프로필을 저장할 수 없어요 (시크릿 모드?). 일반 탭을 사용해 주세요.',
     'sos.tapTitle': '휴대폰이 꺼졌나요?', 'sos.tapTip': '아무 위시밴드 스테이션에 밴드를 빠르게 {n}번 대세요. 불빛과 경보음이 울리고 안내센터에 그 위치로 SOS가 전달돼요.',
     'redeem.shop': '가게', 'redeem.pickShop': '가게를 선택하세요',
     'trial.title': '🧪 학생 연구에 참여해 주세요', 'trial.intro': '저희는 태국 KMUTNB 학생들로, 실제 여행자와 함께 제주 위시밴드를 시험하고 있어요. 참여는 선택이며 앱은 똑같이 작동해요.',
@@ -217,6 +219,7 @@ const I18N = {
     'pick.search': '국가명 또는 +번호 입력', 'pick.none': '결과 없음'
   },
   zh: {
+    'privacy.title': '🔒 只保存在这部手机上', 'privacy.body': '你的姓名、国籍、饮食、健康备注、兴趣和紧急联系人只保存在这部手机的浏览器里。服务器只保存印章、优惠券和你打卡过的站点。发送 SOS 时，服务台在事件结束前可以看到你的信息。', 'privacy.forget': '🗑️ 从这部手机删除我的资料', 'privacy.confirm': '要从这部手机删除资料吗？印章和优惠券仍保留在手环上。', 'privacy.gone': '已从这部手机删除资料', 'privacy.noStorage': '此浏览器无法保存资料（无痕模式？），请使用普通标签页。',
     'greet.small': '欢迎来到济州', 'greet.hello': '你好，{name}！', 'greet.traveler': '旅行者',
     'live.connecting': '连接中…', 'live.on': '实时', 'live.off': '离线',
     'route.title': '心愿路线 {got}/{total}', 'route.sub0': '集齐 3 个印章，领取市场礼券', 'route.next': '下一站：{name}',
@@ -307,6 +310,7 @@ const I18N = {
     'pick.search': '输入国家或 +区号', 'pick.none': '没有结果'
   },
   ja: {
+    'privacy.title': '🔒 このスマホだけに保存', 'privacy.body': '名前、国籍、食事、健康メモ、興味、緊急連絡先はこのスマホのブラウザだけに保存されます。サーバーに残るのはスタンプ、バウチャー、タップしたステーションだけです。SOS を送ると、対応が終わるまでヘルプデスクが情報を見られます。', 'privacy.forget': '🗑️ このスマホからプロフィールを削除', 'privacy.confirm': 'このスマホからプロフィールを削除しますか？スタンプとバウチャーはバンドに残ります。', 'privacy.gone': 'このスマホからプロフィールを削除しました', 'privacy.noStorage': 'このブラウザではプロフィールを保存できません（プライベートモード？）。通常のタブを使ってください。',
     'greet.small': '済州へようこそ', 'greet.hello': 'こんにちは、{name}さん！', 'greet.traveler': '旅行者',
     'live.connecting': '接続中…', 'live.on': 'ライブ', 'live.off': 'オフライン',
     'route.title': 'ウィッシュルート {got}/{total}', 'route.sub0': 'スタンプ3つで市場のプレゼント', 'route.next': '次：{name}',
@@ -397,6 +401,7 @@ const I18N = {
     'pick.search': '国名か +番号を入力', 'pick.none': '見つかりません'
   },
   th: {
+    'privacy.title': '🔒 บันทึกไว้ในโทรศัพท์เครื่องนี้เท่านั้น', 'privacy.body': 'ชื่อ สัญชาติ อาหาร ข้อมูลสุขภาพ ความสนใจ และผู้ติดต่อฉุกเฉินของคุณเก็บอยู่ในเบราว์เซอร์ของโทรศัพท์เครื่องนี้เท่านั้น เซิร์ฟเวอร์เก็บแค่แสตมป์ คูปอง และสถานีที่คุณแตะ ถ้าคุณกด SOS เจ้าหน้าที่จะเห็นข้อมูลของคุณจนกว่าเคสจะปิด', 'privacy.forget': '🗑️ ลบโปรไฟล์ของฉันออกจากโทรศัพท์นี้', 'privacy.confirm': 'ลบโปรไฟล์ออกจากโทรศัพท์นี้ไหม? แสตมป์และคูปองยังอยู่กับริสต์แบนด์', 'privacy.gone': 'ลบโปรไฟล์ออกจากโทรศัพท์นี้แล้ว', 'privacy.noStorage': 'เบราว์เซอร์นี้บันทึกโปรไฟล์ไม่ได้ (โหมดไม่ระบุตัวตน?) กรุณาใช้แท็บปกติ',
     'sos.tapTitle': 'โทรศัพท์แบตหมด?', 'sos.tapTip': 'แตะริสต์แบนด์ที่สถานี wish-band ใดก็ได้เร็ว ๆ {n} ครั้ง สถานีจะกะพริบและส่งเสียงเตือน แล้วศูนย์ช่วยเหลือจะได้รับ SOS พร้อมตำแหน่งนั้น',
     'redeem.shop': 'ร้านค้า', 'redeem.pickShop': 'เลือกร้านค้า',
     'trial.title': '🧪 ร่วมงานวิจัยของนักศึกษา', 'trial.intro': 'เราเป็นนักศึกษา มจพ. ประเทศไทย กำลังทดสอบ Jeju wish-band กับนักท่องเที่ยวจริง การเข้าร่วมเป็นทางเลือก แอปใช้งานได้เหมือนเดิม',

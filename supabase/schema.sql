@@ -41,6 +41,13 @@ create table if not exists public.sos_alerts (
 create index if not exists sos_alerts_status_idx on public.sos_alerts (status);
 create index if not exists sos_alerts_uid_idx on public.sos_alerts (uid);
 
+-- Profiles live on the tourist's phone. The name / country / language / dietary /
+-- emergency_contact columns stay only so older deploys keep working; the app writes null.
+-- To clean rows saved before that change, run once:
+--   update public.tourists set name = null, country = null, language = null, dietary = null, emergency_contact = null,
+--     data = data - 'name' - 'country' - 'countryCode' - 'language' - 'dietary' - 'emergencyContact' - 'emergencyName'
+--                 - 'emergencyRelation' - 'interests' - 'mobility' - 'medicalNotes' - 'onboardedAt' - 'lastUpdated';
+
 -- Only the server (service role key) may read or write. With RLS on and no
 -- policies, the public anon key sees nothing, so the data stays private.
 alter table public.tourists   enable row level security;
