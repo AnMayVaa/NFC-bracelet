@@ -74,21 +74,21 @@ test('demo control: seed story, play a journey, clear', async () => {
   }
 });
 
-test('register: any nationality and an international emergency phone', async () => {
+test('profiles stay on the phone: register saves nothing personal', async () => {
   const s = await start();
   const base = `http://127.0.0.1:${s.address().port}`;
   const post = (p, body) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   try {
-    let r = await post('/api/register', { uid: 'INTL1', name: 'Nguyễn Văn An', countryCode: 'vn', emergencyContact: '+84 912345678', emergencyName: 'Mẹ', emergencyRelation: 'Family' });
+    const r = await post('/api/register', { uid: 'INTL1', name: 'Nguyễn Văn An', countryCode: 'VN', emergencyContact: '+84 912345678', medicalNotes: 'Asthma', interests: ['food'] });
     const j = await r.json();
     assert.strictEqual(r.status, 200);
-    assert.strictEqual(j.tourist.countryCode, 'VN');
-    assert.strictEqual(j.tourist.country, 'Vietnam');
-    assert.strictEqual(j.tourist.emergencyName, 'Mẹ');
-    r = await post('/api/register', { uid: 'INTL1', emergencyContact: '+1 23' });
-    assert.strictEqual(r.status, 400);
-    r = await post('/api/register', { uid: 'INTL1', countryCode: 'ZZ' });
-    assert.strictEqual(r.status, 400);
+    assert.strictEqual(j.storedOnServer, false);
+    const band = await (await fetch(`${base}/api/tourist/INTL1`)).json();
+    for (const k of ['name', 'country', 'countryCode', 'emergencyContact', 'medicalNotes', 'interests', 'mobility', 'dietary'])
+      assert.ok(!(k in band), `${k} must not be on the server`);
+    const st = await (await fetch(`${base}/api/admin/status`)).json();
+    assert.ok(!JSON.stringify(st.tourists).includes('Nguy'));
+    assert.ok(!(await post('/api/location', { uid: 'INTL1', lat: 33.4, lng: 126.5 })).ok, 'phone GPS is not stored');
     const cfg = await (await fetch(`${base}/api/config`)).json();
     assert.strictEqual(cfg.dialCodes.TH, '66');
   } finally {
@@ -96,23 +96,35 @@ test('register: any nationality and an international emergency phone', async () 
   }
 });
 
-test('first use: interests, health and mobility are saved and shape the picks', async () => {
+test('phone SOS carries the profile while open and drops it when closed', async () => {
+  const s = await start();
+  const base = `http://127.0.0.1:${s.address().port}`;
+  const post = (p, body) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
+  try {
+    const r = await post('/api/sos', { uid: 'SOS9', latitude: 33.45, longitude: 126.56, profile: { name: 'Ploy', emergencyContact: '+66 81 234 5678', medicalNotes: 'Asthma', mobility: 'wheelchair' } });
+    assert.strictEqual(r.alert.tourist.name, 'Ploy');
+    assert.strictEqual(r.alert.tourist.medicalNotes, 'Asthma');
+    const band = await (await fetch(`${base}/api/tourist/SOS9`)).json();
+    assert.ok(!('name' in band) && !('medicalNotes' in band));
+    assert.ok(!(band.locationLog || []).some(l => l.source === 'phone'));
+    await post('/api/sos/acknowledge', { alertId: r.alertId });
+    const done = await post('/api/sos/resolve', { alertId: r.alertId });
+    assert.strictEqual(done.alert.status, 'RESOLVED');
+    assert.strictEqual(done.alert.tourist.medicalNotes, '');
+    assert.strictEqual(done.alert.tourist.emergencyContact, '');
+    assert.ok(done.alert.location, 'where it happened is kept');
+  } finally {
+    s.close();
+  }
+});
+
+test('first use: the phone sends interests, diet and mobility with each pick request', async () => {
   const s = await start();
   const base = `http://127.0.0.1:${s.address().port}`;
   const post = (p, body) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   try {
-    let r = await post('/api/register', { uid: 'OB1', mobility: 'flying' });
-    assert.strictEqual(r.status, 400);
-    r = await post('/api/register', {
-      uid: 'OB1', countryCode: 'TH', interests: ['food', 'market', 'bogus'], mobility: 'wheelchair',
-      medicalNotes: 'Asthma', emergencyContact: '+66 812345678', onboarded: true
-    });
-    const j = await r.json();
-    assert.strictEqual(r.status, 200);
-    assert.deepStrictEqual(j.tourist.interests, ['food', 'market']);
-    assert.strictEqual(j.tourist.mobility, 'wheelchair');
-    assert.ok(j.tourist.onboardedAt);
-    const recs = await (await fetch(`${base}/api/recommendations?uid=OB1`)).json();
+    const me = 'interests=food,market,bogus&mobility=wheelchair&dietary=None';
+    const recs = await (await fetch(`${base}/api/recommendations?uid=OB1&${me}`)).json();
     assert.ok(recs.recommendations.every(x => x.effort < 2), 'no steep walks for a wheelchair user');
     assert.strictEqual(recs.recommendations[0].category, 'food');
     for (const x of recs.recommendations) {
@@ -123,7 +135,9 @@ test('first use: interests, health and mobility are saved and shape the picks', 
     assert.deepStrictEqual(olle.link, { kind: 'website', url: 'https://www.jejuolle.org' });
     const maze = (await (await fetch(`${base}/api/recommendations?category=activity`)).json()).recommendations.find(x => x.id === 'a-maze');
     assert.strictEqual(maze.link.kind, 'official');
-    const today = await (await fetch(`${base}/api/recommendations?uid=OB1&today=culture,bogus`)).json();
+    const today = await (await fetch(`${base}/api/recommendations?uid=OB1&${me}&today=culture,bogus`)).json();
+    const band = await (await fetch(`${base}/api/tourist/OB1`)).json();
+    assert.ok(!('interests' in band) && !('mobility' in band));
     assert.ok(today.recommendations[0].interests.includes('culture'));
     const cfg = await (await fetch(`${base}/api/config`)).json();
     assert.ok(cfg.interests.includes('nature'));

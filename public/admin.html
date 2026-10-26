@@ -68,7 +68,6 @@
           <button class="btn small leaf" data-sim="tap-activity">🌊 Activity tap</button>
           <button class="btn small" data-sim="complete">⭐ Finish route</button>
           <button class="btn small" data-sim="redeem">🎁 Redeem voucher</button>
-          <button class="btn small sea" data-sim="gps">📍 Move GPS</button>
           <button class="btn small sos" data-sim="sos">🚨 Send SOS</button>
           <button class="btn small sos" data-sim="sos-taps" title="Five quick taps of the band at its last station, like a tourist with a dead phone">🖐️ 5-tap band SOS</button>
           <button class="btn small ghost" data-sim="reset">↺ Reset band</button>
@@ -104,19 +103,11 @@
         </div>
         <form id="formReg">
           <div class="field"><label>Tag UID</label><input id="rUid" class="mono" required placeholder="04DBCE42CA2A81"></div>
-          <div class="field"><label>Tourist name</label><input id="rName" required placeholder="Min-woo Kim"></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-            <div class="field"><label>Country</label><input id="rCountry" placeholder="Thailand"></div>
-            <div class="field"><label>Language</label>
-              <select id="rLang"><option>English</option><option>Korean</option><option>Chinese</option><option>Japanese</option><option>Thai</option></select>
-            </div>
-          </div>
-          <div class="field"><label>Diet</label><div class="pick-row" id="rDiet"></div></div>
-          <div class="field"><label>Emergency contact</label><input id="rSos" type="tel" placeholder="+82 10-1234-5678"></div>
+          <p class="muted" style="font-size:.8rem;font-weight:600;margin:0 0 10px">🔒 The tourist fills in name, diet, health and emergency contact on their own phone. It stays on that phone, so the desk never sees or stores it.</p>
           <label style="display:flex;gap:8px;align-items:center;font-weight:700;font-size:.88rem;margin-bottom:12px">
             <input type="checkbox" id="rDeposit" checked style="width:18px;height:18px;accent-color:var(--tan)"> 10,000₩ deposit received
           </label>
-          <button class="btn block" type="submit">💾 Register &amp; link wish-band</button>
+          <button class="btn block" type="submit">💾 Link wish-band &amp; show QR</button>
         </form>
       </div>
 
@@ -143,7 +134,7 @@
           <h3>🧳 Wish-bands</h3>
           <span class="chip" id="bandCount">0</span>
           <div style="flex:1"></div>
-          <input class="input" id="search" placeholder="Search name or UID" style="max-width:220px;padding:8px 12px">
+          <input class="input" id="search" placeholder="Search UID" style="max-width:220px;padding:8px 12px">
         </div>
         <div class="table-wrap">
           <table>

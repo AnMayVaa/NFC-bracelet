@@ -4,8 +4,9 @@ A smart basalt-bead wristband for Jeju visitors. Tap the band on a phone to open
 
 | Part | What it does |
 | :--- | :--- |
+| 🔒 Privacy | The tourist's profile (name, nationality, language, diet, health notes, interests, emergency contact) is saved **only in their phone's browser**. The server keeps only the band: stamps, voucher, station taps, AI pick events and SOS alerts. See [Privacy](#privacy) |
 | 📱 Tourist app (`/<UID>`) | **For You**: one-tap diet setup, stamp progress strip, live weather card, map + AI picks (diet-safe, weather-aware, boosts local and quiet spots) · **Stamps**: road route map, passport, 4,000 KRW Dongmun Market voucher · **SOS**: hold-to-send SOS, Korean hotlines, your embassy or consulate, Helping Map, help near you · **Me**: any nationality (flag, name in any script), international emergency contact, language (English, 한국어, 中文, 日本語, ไทย) and dark mode |
-| 🏢 Admin desk (`/admin`) | Issue and register bands, write NFC tags, SOS queue (acknowledge, dispatch, resolve), station health, live log, evaluation metrics, **Demo control** (load a mock story, play each journey step for one band, clear SOS / stamps / guests, download a backup, delete everything) |
+| 🏢 Admin desk (`/admin`) | Issue bands (no profile), write NFC tags, SOS queue (acknowledge, dispatch, resolve), station health, live log, evaluation metrics, **Demo control** (load a mock story, play each journey step for one band, clear SOS / stamps / guests, download a backup, delete everything) |
 | 📟 `firmware/admin` | ESP32 + PN532 desk reader: reads the tag, writes the tourist link, reports to the admin desk |
 | 🍊 `firmware/food` · 🗿 `firmware/place` · 🌊 `firmware/activity` | ESP32 stations (PN532 by default, MFRC522 optional): each tap gives a stamp of that kind |
 | 🍊🗿🌊 `firmware/stamp` | Optional all-in-one version of the three station sketches: one sketch, and each board is told which station it is (`station food` in the Serial Monitor or the phone setup page) |
@@ -152,22 +153,40 @@ Tap the same wish-band **5 times within about 10 s (12 s allowed)** on any food,
 - **Interests** is 1 when the item matches an interest from the first-use setup, 0 when it doesn't, 0.5 when none are set.
 - **Weather fit** = half UV fit, half live rain / wind / heat / cold fit, from Open-Meteo (`lib/weather.js`, no key, cached 15 min). Rain puts caves, museums and markets first; each card says why ("Dry inside, good for rain", "Out of the wind", "Cool spot for a hot day").
 - Proximity uses the phone GPS if shared, else the last station tapped.
+- Interests, diet and mobility come from the phone with each request (`?interests&dietary&mobility`); the server uses them for that answer and does not keep them.
+
+### Privacy
+
+Personal details never sit in the database.
+
+| Where | What |
+| :--- | :--- |
+| Phone (`localStorage`, key `wb-profile:<UID>`) | Name, nationality, language, diet, health notes, mobility, interests, emergency contact. **Me → Delete my profile from this phone** removes it |
+| Server (Supabase / `database.json`) | Per band: stamps, check-in history, voucher, station-tap locations, AI pick events, trial consent and survey |
+| SOS alert, while open | A phone SOS carries a copy of the profile (name, emergency contact, health notes, mobility, language, diet) and the phone GPS, so staff can help. When staff resolve or cancel it, the copy is wiped; time, place and outcome stay for the metrics |
+
+What that costs:
+- The admin desk can't see who owns a band or edit a profile.
+- A new phone or a cleared browser means doing the 3-step setup again (stamps and voucher stay on the band).
+- A band-only SOS (5 quick taps at a station, phone off) reaches staff with the band ID and the station's location only.
+- Phone GPS is not stored as "last location"; last location comes from station taps (and the GPS inside an SOS).
+
+The server enforces this in `lib/core.js` (`PERSONAL_FIELDS`, `stripPersonal`) and `lib/store.js`: every load and save strips those fields, so old rows are cleaned the first time they are saved again.
 
 ### API
 
 | Method & path | Caller | Purpose |
 | :--- | :--- | :--- |
 | `GET /api/config` | web | Stations, kinds, reward, help points, hotlines |
-| `GET /api/tourist/:uid` | phone | Profile, stamps, voucher, active SOS (auto-creates new bands) |
-| `POST /api/register` | phone / admin | Save profile |
+| `GET /api/tourist/:uid` | phone | Band: stamps, voucher, active SOS (auto-creates new bands). No profile |
+| `POST /api/register` | admin desk | `{uid, depositPaid}` link a band. Profile fields are ignored |
 | `POST /api/checkin` | station ESP32 | `{uid, station}` → stamp; replies `duplicate`, `isNewStamp`, `stampsCollected`, `voucherUnlocked` |
 | `POST /api/stations/heartbeat` | ESP32 | Station online status for the admin desk |
 | `POST /api/admin/scan` | admin ESP32 | Tag read at the desk |
 | `GET/POST /api/admin/write-queue` | admin ESP32 / desk | Custom content for the next tag |
-| `GET /api/recommendations` | phone | `?uid&category&lat&lng` → UV, advice, ranked picks |
+| `GET /api/recommendations` | phone | `?uid&category&lat&lng&interests&dietary&mobility&today` → UV, advice, ranked picks |
 | `POST /api/recommendations/event` | phone | `shown / opened / visited` for the conversion metric |
-| `POST /api/location` | phone | Share GPS as last-known location |
-| `POST /api/sos` · `/api/sos/:action` | phone / admin | Raise SOS; `acknowledge`, `dispatch`, `resolve`, `cancel` |
+| `POST /api/sos` · `/api/sos/:action` | phone / admin | Raise SOS with `profile` (the phone's copy, wiped on close); `acknowledge`, `dispatch`, `resolve`, `cancel` |
 | `POST /api/redeem` | phone + merchant | `{uid, pin, shop}` → single-use voucher, `shop` from `MERCHANTS` |
 | `POST /api/sos/band` | station ESP32 | `{uid, station, taps, ageSec}` → SOS from rapid band taps |
 | `POST /api/trial/consent` | phone | `{uid, consent: true/false}` join, decline or leave the field trial |
