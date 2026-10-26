@@ -7,7 +7,7 @@ A smart basalt-bead wristband for Jeju visitors. Tap the band on a phone to open
 | 📱 Tourist app (`/<UID>`) | **For You**: one-tap diet setup, stamp progress strip, live weather card, map + AI picks (diet-safe, weather-aware, boosts local and quiet spots) · **Stamps**: road route map, passport, 4,000 KRW Dongmun Market voucher · **SOS**: hold-to-send SOS, Korean hotlines, your embassy or consulate, Helping Map, help near you · **Me**: any nationality (flag, name in any script), international emergency contact, language (English, 한국어, 中文, 日本語, ไทย) and dark mode |
 | 🏢 Admin desk (`/admin`) | Issue and register bands, write NFC tags, SOS queue (acknowledge, dispatch, resolve), station health, live log, evaluation metrics, **Demo control** (load a mock story, play each journey step for one band, clear SOS / stamps / guests, download a backup, delete everything) |
 | 📟 `firmware/admin` | ESP32 + PN532 desk reader: reads the tag, writes the tourist link, reports to the admin desk |
-| 🍊 `firmware/food` · 🗿 `firmware/place` · 🌊 `firmware/activity` | ESP32 stations (MFRC522 by default, PN532 optional): each tap gives a stamp of that kind |
+| 🍊 `firmware/food` · 🗿 `firmware/place` · 🌊 `firmware/activity` | ESP32 stations (PN532 by default, MFRC522 optional): each tap gives a stamp of that kind |
 | 🍊🗿🌊 `firmware/stamp` | Optional all-in-one version of the three station sketches: one sketch, and each board is told which station it is (`station food` in the Serial Monitor or the phone setup page) |
 
 ---
@@ -209,13 +209,13 @@ Each folder is a normal Arduino sketch. Board: **ESP32 Dev Module**, 115200 baud
 - **Phone setup page**: hold **BOOT** while powering on (or type `portal`, or it opens by itself when no known network is found). Join Wi-Fi `WishBand-<station>` with password `wishband123`, then open http://192.168.4.1, pick a network and tap *Connect & remember*.
 - Every network that connects is remembered (up to 5), newest first.
 
-Station sounds: two rising beeps = new stamp, fanfare = voucher unlocked, one short beep = already stamped (within 60 s), two quick beeps = offline (the tap is queued and sent when Wi-Fi returns), low buzz = error. The LED blinks while offline.
+Station sounds (fw 2.3): like a bus card reader, the station beeps the moment it reads a band and asks the server in the background (`net_worker.h`, one kept-open HTTPS connection plus a heartbeat every 20 s so the link and the server stay warm). A second, higher beep = new stamp saved, fanfare = voucher unlocked, just the first beep = already stamped (within 60 s), two quick beeps = offline or no answer (the tap is queued and sent when Wi-Fi returns), low buzz = the server refused it. The LED blinks while offline.
 
-To use a PN532 at a station instead of an MFRC522, set `#define USE_PN532 1` at the top of the sketch.
+Stations use a PN532 by default (`#define USE_PN532 1`). To use an MFRC522 instead, set `#define USE_PN532 0` at the top of the sketch.
 
 ### Wiring
 
-**Admin desk: ESP32 + PN532 (I2C).** DIP switches SEL0 = OFF, SEL1 = ON.
+**Admin desk and stations (default): ESP32 + PN532 (I2C).** DIP switches SEL0 = OFF, SEL1 = ON.
 
 | PN532 | ESP32 |
 | :--- | :--- |
@@ -224,7 +224,7 @@ To use a PN532 at a station instead of an MFRC522, set `#define USE_PN532 1` at 
 | SDA | GPIO 21 |
 | SCL | GPIO 22 |
 
-**Stations: ESP32 + MFRC522 (SPI).** ⚠️ 3.3 V only. Never connect the MFRC522 to 5 V.
+**Stations with `USE_PN532 0`: ESP32 + MFRC522 (SPI).** ⚠️ 3.3 V only. Never connect the MFRC522 to 5 V.
 
 | MFRC522 | ESP32 |
 | :--- | :--- |

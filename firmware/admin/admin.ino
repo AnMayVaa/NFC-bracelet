@@ -6,11 +6,15 @@
 
   What it does (airport / hotel desk)
     1. Staff taps a new wish-band on the PN532.
-    2. The ESP32 asks the server what to write (GET /api/admin/write-queue):
+    2. The tag gets what the server wants written:
          - a custom text/URL queued from the Admin web page, or
          - the default tourist link  <SERVER>/<UID>
+       The desk checks the write queue (GET /api/admin/write-queue) every 3 s in the
+       background, so a tap never waits for the internet.
     3. It burns that NDEF record onto the NTAG sticker (skipped if already there),
-       reads it back to verify, and reports it (POST /api/admin/scan).
+       reads it back to verify and beeps right away. Then it reports the tap
+       (POST /api/admin/scan) in the background; a low buzz a moment later means
+       the Admin web didn't get it, so tap again.
     4. The Admin web page shows the UID so staff can register the tourist.
 
   Serial Monitor commands (115200 baud)
@@ -30,7 +34,7 @@
   =============================================================================
 */
 
-#define FW_VERSION "2.0.0"
+#define FW_VERSION "2.1.0"
 
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -45,6 +49,7 @@
   #include "secrets.example.h"
 #endif
 #include "wifi_setup.h"
+#include "net_worker.h"
 
 #define SDA_PIN    21
 #define SCL_PIN    22
@@ -60,6 +65,14 @@ unsigned long lastTapAt = 0;
 const unsigned long DEBOUNCE_MS = 2500;
 String serialQueued = "";            // from "W:" command
 unsigned long lastHeartbeat = 0;
+
+// Server calls go through the background task in net_worker.h.
+enum { JOB_QUEUE_CHECK = 1, JOB_SCAN, JOB_HEARTBEAT };
+int netBusy = 0;                     // requests handed to the network task, not answered yet
+String webQueued = "";               // custom write queued on the Admin web page (refreshed every 3 s)
+unsigned long lastQueueCheck = 0;
+unsigned long webQueueUsedAt = 0;    // queue answers asked before this are stale
+const unsigned long QUEUE_CHECK_MS = 3000;
 
 const int MAX_CONTENT = 100;         // fits NTAG213 (144 bytes user memory)
 
@@ -77,20 +90,11 @@ void setupWifi() {
 
 bool ensureWifi() { return WifiSetup::loop(); }
 
-// ---------------------------------------------------------------- HTTP
-int request(const char* method, const String& path, const String& body, String& response) {
-  String url = String(SERVER_URL) + path;
-  HTTPClient http;
-  WiFiClientSecure secure;
-  if (url.startsWith("https://")) { secure.setInsecure(); http.begin(secure, url); }
-  else { http.begin(url); }
-  http.setTimeout(6000);
-  http.addHeader("Content-Type", "application/json");
-  if (strlen(STATION_KEY) > 0) http.addHeader("X-Station-Key", STATION_KEY);
-  int code = strcmp(method, "GET") == 0 ? http.GET() : http.POST(body);
-  response = code > 0 ? http.getString() : http.errorToString(code);
-  http.end();
-  return code;
+// ---------------------------------------------------------------- server calls
+bool submit(uint8_t kind, const String& uid, const char* path, const String& body) {
+  if (!NetWorker::submit(kind, uid, millis(), path, body)) return false;
+  netBusy++;
+  return true;
 }
 
 // Minimal JSON string reader: returns value of "key":"value", or "" for null/missing.
@@ -122,11 +126,13 @@ String readNtagContent() {
   uint8_t buffer[160];
   memset(buffer, 0, sizeof(buffer));
   bool readAny = false;
-  for (uint8_t page = 4; page < 40; page++) {
+  int needed = 80;                                   // bytes to read; known after the first page
+  for (uint8_t page = 4; page < 40 && (page - 4) * 4 < needed; page++) {
     uint8_t data[4];
     if (!nfc.ntag2xx_ReadPage(page, data)) break;
     readAny = true;
     memcpy(&buffer[(page - 4) * 4], data, 4);
+    if (page == 4) needed = buffer[0] == 0x03 ? buffer[1] + 3 : 0;   // NDEF TLV: stop after its end
   }
   if (!readAny) return "(could not read)";
 
@@ -199,57 +205,75 @@ bool writeNdef(String content) {
 }
 
 // ---------------------------------------------------------------- tap handling
+// Everything on the tag happens here and the beep comes right after; the server only hears about it later.
 void handleTag(const String& uid, uint8_t uidLength) {
+  unsigned long startedAt = millis();
+  digitalWrite(LED_PIN, HIGH);
   Serial.println("\n==============================================");
   Serial.printf("🏷️  Tag %s (%d-byte UID)\n", uid.c_str(), uidLength);
-  bool online = WiFi.status() == WL_CONNECTED;
 
   // 1. What should this tag hold?
   String target = serialQueued;
   bool fromWebQueue = false;
-  if (target.length() == 0 && online) {
-    String res;
-    if (request("GET", "/api/admin/write-queue", "", res) == 200) {
-      target = jsonString(res, "pendingWrite");
-      fromWebQueue = target.length() > 0;
-    }
-  }
+  if (target.length() == 0 && webQueued.length() > 0) { target = webQueued; fromWebQueue = true; }
   if (target.length() == 0) target = String(SERVER_URL) + "/" + uid;
 
   // 2. Write it (NTAG stickers have 7-byte UIDs; Mifare fobs are read-only here)
-  String before = uidLength == 7 ? readNtagContent() : "";
+  String verified = "(UID only)";
   bool wrote = false;
   if (uidLength == 7) {
-    if (before == target) {
+    verified = readNtagContent();
+    if (verified == target) {
       Serial.println("✔️ Tag already holds the right link, no write needed.");
     } else {
       Serial.printf("✍️ Writing: %s\n", target.c_str());
       wrote = writeNdef(target);
       Serial.println(wrote ? "✅ Written" : "⚠️ Write failed, tap again");
       if (wrote && serialQueued.length()) serialQueued = "";
+      if (wrote && fromWebQueue) { webQueued = ""; webQueueUsedAt = millis(); }
+      verified = readNtagContent();                  // 3. verify
     }
   } else {
     Serial.println("ℹ️ Not an NTAG sticker: UID only (fob / card).");
   }
-
-  // 3. Verify and report
-  String verified = uidLength == 7 ? readNtagContent() : "(UID only)";
   Serial.printf("📖 Tag says: %s\n", verified.c_str());
 
-  if (online) {
+  bool ok = uidLength != 7 || verified == target;
+  ok ? soundOk() : soundError();
+  Serial.printf("⏱️  Tag done in %lu ms\n", millis() - startedAt);
+
+  // 4. Report it in the background
+  if (WiFi.status() == WL_CONNECTED) {
     String body = String("{\"uid\":\"") + uid + "\",\"content\":\"" + jsonEscape(verified) + "\"";
     if (wrote && fromWebQueue) body += ",\"wrote\":\"" + jsonEscape(target) + "\"";
     body += ",\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}";
-    String res;
-    int code = request("POST", "/api/admin/scan", body, res);
-    Serial.printf("📡 Admin web [%d]\n", code);
-    if (code == 200 && (uidLength != 7 || verified == target)) soundOk();
-    else if (code == 200) soundRead();
-    else soundError();
+    if (!submit(JOB_SCAN, uid, "/api/admin/scan", body)) Serial.println("⚠️ Network busy: tap again to report it");
   } else {
-    (uidLength == 7 && verified == target) ? soundOk() : soundError();
+    Serial.println("📴 Offline: the Admin web won't see this tap");
   }
   Serial.println("==============================================");
+}
+
+void handleReply(const NetWorker::Reply& r) {
+  netBusy--;
+  String res = r.body;
+  switch (r.kind) {
+    case JOB_QUEUE_CHECK:
+      if (r.code == 200 && r.at >= webQueueUsedAt) {
+        String next = jsonString(res, "pendingWrite");
+        if (next != webQueued && next.length()) Serial.printf("✍️ Admin web queued: \"%s\" for the next tag\n", next.c_str());
+        webQueued = next;
+      }
+      break;
+    case JOB_SCAN:
+      Serial.printf("📡 Admin web [%d] in %lu ms for %s\n", r.code, (unsigned long)(millis() - r.at), r.uid);
+      if (r.code == 200) { webQueued = jsonString(res, "pendingWrite"); webQueueUsedAt = millis(); }
+      else soundError();                             // the web page didn't get it: staff should tap again
+      break;
+    case JOB_HEARTBEAT:
+      if (r.code != 200) Serial.printf("💓 heartbeat [%d] %s\n", r.code, r.body);
+      break;
+  }
 }
 
 // ---------------------------------------------------------------- main
@@ -273,6 +297,7 @@ void setup() {
   nfc.SAMConfig();
 
   setupWifi();
+  NetWorker::begin();
   if (WiFi.status() == WL_CONNECTED) soundOk();
   Serial.println("\n👉 Ready. Tap a new wish-band. Type W:<text> to queue a custom write, \"help\" for Wi-Fi.\n");
 }
@@ -293,17 +318,26 @@ void loop() {
     }
   }
 
-  if (online && millis() - lastHeartbeat > 60000) {
-    lastHeartbeat = millis();
-    String res;
-    request("POST", "/api/stations/heartbeat",
-            String("{\"station\":\"admin\",\"fw\":\"" FW_VERSION "\",\"ssid\":\"") + WiFi.SSID() +
-            "\",\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}", res);
+  NetWorker::Reply reply;
+  while (NetWorker::poll(reply)) handleReply(reply);
+
+  // Background calls only while nothing else waits for the server. The queue check every 3 s also
+  // keeps the HTTPS link open, so a tap's report doesn't pay for a new handshake.
+  if (online && netBusy == 0) {
+    if (lastHeartbeat == 0 || millis() - lastHeartbeat > 60000) {
+      lastHeartbeat = millis();
+      submit(JOB_HEARTBEAT, "", "/api/stations/heartbeat",
+             String("{\"station\":\"admin\",\"fw\":\"" FW_VERSION "\",\"ssid\":\"") + WiFi.SSID() +
+             "\",\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}");
+    } else if (millis() - lastQueueCheck > QUEUE_CHECK_MS) {
+      lastQueueCheck = millis();
+      submit(JOB_QUEUE_CHECK, "", "/api/admin/write-queue", "");
+    }
   }
 
   uint8_t uid[7] = {0};
   uint8_t len = 0;
-  if (nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &len, 150)) {
+  if (nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &len, 40)) {
     String s = "";
     for (uint8_t i = 0; i < len; i++) { if (uid[i] < 0x10) s += "0"; s += String(uid[i], HEX); }
     s.toUpperCase();
@@ -313,5 +347,5 @@ void loop() {
       handleTag(s, len);
     }
   }
-  delay(80);
+  delay(10);
 }

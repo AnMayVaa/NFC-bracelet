@@ -1,19 +1,21 @@
 /*
   =============================================================================
   🌋 Jeju wish-band — Food Station
-  Board: ESP32 Dev Module     Reader: MFRC522 (SPI)  or  PN532 (I2C)
+  Board: ESP32 Dev Module     Reader: PN532 (I2C, default)  or  MFRC522 (SPI)
   =============================================================================
 
   What it does
     Tap a wish-band -> POST /api/checkin {uid, station:"food"} -> the tourist
     gets a food stamp. Collect food + place + activity to unlock the voucher.
 
-  Feedback
-    New stamp        : two rising beeps
+  Feedback (like a bus card reader: the first beep comes the moment the band is read;
+  the server is asked in the background and its answer only adds to that beep)
+    Band read        : one beep right away
+    New stamp        : a second, higher beep once the server has saved it
     Voucher unlocked : four-note fanfare
-    Already stamped  : one short beep (tapped again within 60 s)
-    Offline          : two quick beeps (tap is queued and sent when Wi-Fi is back)
-    Error            : low buzz
+    Already stamped  : just the first beep (tapped again within 60 s)
+    Offline / no answer : two quick beeps (tap is queued and sent when Wi-Fi is back)
+    Error            : low buzz (the server refused the tap)
     Counting taps    : one short low tick (2nd to 4th quick tap of the same band)
     SOS              : high-low siren, then the LED flashes fast for 30 s
 
@@ -32,7 +34,7 @@
 
   Setup
     1. Copy secrets.example.h to secrets.h in this folder and fill it in.
-    2. Libraries: "MFRC522" by GithubCommunity (or "Adafruit PN532" if USE_PN532 = 1).
+    2. Libraries: "Adafruit PN532" (or "MFRC522" by GithubCommunity if USE_PN532 = 0).
     3. Board: ESP32 Dev Module, 115200 baud.
 
   MFRC522 wiring (3.3 V ONLY, never 5 V)     PN532 wiring (DIP: SEL0=OFF, SEL1=ON for I2C)
@@ -47,10 +49,10 @@
 // ---------------------------------------------------------------- station
 #define STATION_ID    "food"        // must match lib/data/stations.js on the server
 #define STATION_NAME  "Dongmun Traditional Market"
-#define FW_VERSION    "2.1.0"
+#define FW_VERSION    "2.3.0"
 
-// 0 = MFRC522 (SPI), 1 = PN532 (I2C)
-#define USE_PN532 0
+// 1 = PN532 (I2C, default), 0 = MFRC522 (SPI)
+#define USE_PN532 1
 
 // ---------------------------------------------------------------- includes
 #include <WiFi.h>
@@ -64,6 +66,7 @@
   #include "secrets.example.h"
 #endif
 #include "wifi_setup.h"
+#include "net_worker.h"
 
 #if USE_PN532
   #include <Wire.h>
@@ -103,16 +106,26 @@ const int QUEUE_MAX = 20;                       // taps kept while offline
 String pending[QUEUE_MAX];
 int pendingCount = 0;
 
-unsigned long lastFlush = 0;
-unsigned long lastHeartbeat = 0;
-const unsigned long HEARTBEAT_MS = 60000;
+unsigned long lastFlush = 0;                    // when a queued item was last tried (0 = send now)
+String replayItem = "";                         // queued item that is out with the network task
+int netBusy = 0;                                // requests handed to the network task, not answered yet
+unsigned long ledUntil = 0;                     // LED stays on until then after a tap
+const unsigned long KEEP_WARM_MS = 20000;       // a heartbeat every 20 s keeps the link open and the server warm
 
 // ---------------------------------------------------------------- sounds
-void beep(int freq, int ms) { tone(BUZZER_PIN, freq, ms); delay(ms + 20); }
+unsigned long toneFreeAt = 0;                   // when the instant tap beep has finished
+void beep(int freq, int ms) {
+  while ((long)(toneFreeAt - millis()) > 0) delay(2);
+  tone(BUZZER_PIN, freq, ms);
+  delay(ms + 20);
+}
+
+// Played the moment a band is read, before any network call. Doesn't wait for the sound to end.
+void soundTap()     { digitalWrite(LED_PIN, HIGH); ledUntil = millis() + 300; tone(BUZZER_PIN, 2200, 90); toneFreeAt = millis() + 110; }
+void soundSaved()   { digitalWrite(LED_PIN, HIGH); beep(2900, 150); digitalWrite(LED_PIN, LOW); }
 
 void soundStamp()   { digitalWrite(LED_PIN, HIGH); beep(2200, 110); beep(2900, 170); digitalWrite(LED_PIN, LOW); }
 void soundVoucher() { digitalWrite(LED_PIN, HIGH); beep(2000, 100); beep(2400, 100); beep(2800, 100); beep(3400, 280); digitalWrite(LED_PIN, LOW); }
-void soundRepeat()  { digitalWrite(LED_PIN, HIGH); beep(2600, 70); digitalWrite(LED_PIN, LOW); }
 void soundQueued()  { digitalWrite(LED_PIN, HIGH); beep(2400, 60); beep(2400, 60); digitalWrite(LED_PIN, LOW); }
 void soundError()   { digitalWrite(LED_PIN, HIGH); beep(700, 380); digitalWrite(LED_PIN, LOW); }
 void soundCount()   { digitalWrite(LED_PIN, HIGH); beep(1500, 45); digitalWrite(LED_PIN, LOW); }
@@ -135,69 +148,45 @@ void handleSerial() {
     Serial.println("Commands: scan | join <n> [password] | join Name,password | saved | forget | portal | wifi");
 }
 
-// ---------------------------------------------------------------- HTTP
-int postJson(const String& path, const String& body, String& response) {
-  String url = String(SERVER_URL) + path;
-  HTTPClient http;
-  WiFiClientSecure secure;
-  if (url.startsWith("https://")) { secure.setInsecure(); http.begin(secure, url); }
-  else { http.begin(url); }
-  http.setTimeout(6000);
-  http.addHeader("Content-Type", "application/json");
-  if (strlen(STATION_KEY) > 0) http.addHeader("X-Station-Key", STATION_KEY);
-  int code = http.POST(body);
-  response = code > 0 ? http.getString() : http.errorToString(code);
-  http.end();
-  return code;
-}
+// ---------------------------------------------------------------- server calls (background, see net_worker.h)
+// Kinds of request handed to the network task.
+enum { JOB_CHECKIN = 1, JOB_QUEUED_CHECKIN, JOB_SOS, JOB_QUEUED_SOS, JOB_HEARTBEAT };
 
-// Sends one tap. Returns false if it should be retried later.
-bool sendCheckin(const String& uid, bool live) {
-  String body = String("{\"uid\":\"") + uid + "\",\"station\":\"" STATION_ID "\",\"ip\":\"" +
+bool submitCheckin(const String& uid, bool live, uint32_t at) {
+  String body = String("{\"uid\":\"") + uid + "\",\"station\":\"" + STATION_ID + "\",\"ip\":\"" +
                 WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}";
-  String res;
-  int code = postJson("/api/checkin", body, res);
-  Serial.printf("📡 [%d] %s\n", code, res.c_str());
-
-  if (code == 200) {
-    if (!live) return true;  // replayed from the queue: stay quiet
-    if (res.indexOf("\"sosTriggered\":true") >= 0) { Serial.println("🆘 Server counted an SOS"); sosLightUntil = millis() + SOS_LIGHT_MS; soundSos(); }
-    else if (res.indexOf("\"voucherUnlocked\":true") >= 0) { Serial.println("🎉 Voucher unlocked!"); soundVoucher(); }
-    else if (res.indexOf("\"duplicate\":true") >= 0) { Serial.println("↺ Already stamped just now"); soundRepeat(); }
-    else { Serial.println("🗿 Stamp saved"); soundStamp(); }
-    return true;
-  }
-  if (code >= 400 && code < 500) {   // server said no (bad key, unknown station): don't retry
-    if (live) soundError();
-    return true;
-  }
-  if (live) soundError();
-  return false;
+  if (!NetWorker::submit(live ? JOB_CHECKIN : JOB_QUEUED_CHECKIN, uid, at, "/api/checkin", body)) return false;
+  netBusy++;
+  return true;
 }
 
-// Asks the help desk for an SOS for this band. ageSec = how long ago the taps happened (queued while offline).
-// Returns false if it should be retried later.
-bool sendSos(const String& uid, unsigned long ageSec) {
-  String body = String("{\"uid\":\"") + uid + "\",\"station\":\"" STATION_ID "\",\"taps\":" + String(SOS_TAPS) +
-                ",\"ageSec\":" + String(ageSec) + ",\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}";
-  String res;
-  int code = postJson("/api/sos/band", body, res);
-  Serial.printf("🆘 [%d] %s\n", code, res.c_str());
-  if (code == 200) { Serial.println("🆘 SOS delivered to the help desk"); sosLightUntil = millis() + SOS_LIGHT_MS; return true; }
-  if (code >= 400 && code < 500) { soundError(); return true; }   // server said no: retrying won't help
-  return false;
+// Asks the help desk for an SOS for this band. at = when the taps happened (queued while offline).
+bool submitSos(const String& uid, bool live, uint32_t at) {
+  String body = String("{\"uid\":\"") + uid + "\",\"station\":\"" + STATION_ID + "\",\"taps\":" + String(SOS_TAPS) +
+                ",\"ageSec\":" + String((millis() - at) / 1000) + ",\"ip\":\"" + WiFi.localIP().toString() +
+                "\",\"rssi\":" + String(WiFi.RSSI()) + "}";
+  if (!NetWorker::submit(live ? JOB_SOS : JOB_QUEUED_SOS, uid, at, "/api/sos/band", body)) return false;
+  netBusy++;
+  return true;
 }
 
-void queueTap(const String& uid) {
-  if (pendingCount < QUEUE_MAX) pending[pendingCount++] = uid;
+void submitHeartbeat() {
+  String body = String("{\"station\":\"") + STATION_ID + "\",\"fw\":\"" FW_VERSION "\",\"ssid\":\"" + WiFi.SSID() +
+                "\",\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}";
+  if (NetWorker::submit(JOB_HEARTBEAT, "", millis(), "/api/stations/heartbeat", body)) netBusy++;
+}
+
+// Offline queue items: "<uid>:<millis>" for a tap, "SOS:<uid>:<millis>" for an SOS.
+void queueTap(const String& uid, uint32_t at) {
+  if (pendingCount < QUEUE_MAX) pending[pendingCount++] = uid + ":" + String(at);
   Serial.printf("🕒 Queued %s (%d waiting)\n", uid.c_str(), pendingCount);
 }
 
-// SOS goes to the front of the queue as "SOS:<uid>:<millis>", pushing out the newest tap if full.
-void queueSos(const String& uid) {
+// SOS goes to the front of the queue, pushing out the newest tap if full.
+void queueSos(const String& uid, uint32_t at) {
   if (pendingCount == QUEUE_MAX) pendingCount--;
   for (int i = pendingCount; i > 0; i--) pending[i] = pending[i - 1];
-  pending[0] = "SOS:" + uid + ":" + String(millis());
+  pending[0] = "SOS:" + uid + ":" + String(at);
   pendingCount++;
   Serial.printf("🕒 SOS queued for %s (sent when Wi-Fi is back)\n", uid.c_str());
 }
@@ -207,26 +196,72 @@ bool sosWaiting() {
   return false;
 }
 
-bool sendQueued(const String& item) {
-  if (!item.startsWith("SOS:")) return sendCheckin(item, false);
-  int sep = item.lastIndexOf(':');
-  unsigned long at = strtoul(item.substring(sep + 1).c_str(), nullptr, 10);
-  return sendSos(item.substring(4, sep), (millis() - at) / 1000);
+// Sends the oldest queued item (one at a time, only while no live tap is waiting).
+void replayQueue() {
+  String item = pending[0];
+  bool sos = item.startsWith("SOS:");
+  String rest = sos ? item.substring(4) : item;
+  int sep = rest.lastIndexOf(':');
+  uint32_t at = strtoul(rest.substring(sep + 1).c_str(), nullptr, 10);
+  String uid = rest.substring(0, sep);
+  if (sos ? submitSos(uid, false, at) : submitCheckin(uid, false, at)) replayItem = item;
 }
 
-void flushQueue() {
-  while (pendingCount > 0 && WiFi.status() == WL_CONNECTED) {
-    if (!sendQueued(pending[0])) return;
-    for (int i = 1; i < pendingCount; i++) pending[i - 1] = pending[i];
-    pendingCount--;
+void replayFinished(bool delivered) {
+  if (delivered) {
+    for (int i = 0; i < pendingCount; i++) {
+      if (pending[i] != replayItem) continue;
+      for (int k = i + 1; k < pendingCount; k++) pending[k - 1] = pending[k];
+      pendingCount--;
+      break;
+    }
+    lastFlush = 0;                 // send the next one right away
+  } else {
+    lastFlush = millis();          // try again in 10 s
   }
+  replayItem = "";
 }
 
-void sendHeartbeat() {
-  String body = String("{\"station\":\"" STATION_ID "\",\"fw\":\"" FW_VERSION "\",\"ssid\":\"") + WiFi.SSID() +
-                "\",\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}";
-  String res;
-  postJson("/api/stations/heartbeat", body, res);
+// The server answered (or gave up). Sounds here only add to the beep the tap already got.
+void handleReply(const NetWorker::Reply& r) {
+  netBusy--;
+  String res = r.body;
+  String uid = r.uid;
+  bool refused = r.code >= 400 && r.code < 500;     // bad key, unknown station: retrying won't help
+
+  switch (r.kind) {
+    case JOB_CHECKIN:
+    case JOB_QUEUED_CHECKIN: {
+      bool live = r.kind == JOB_CHECKIN;
+      Serial.printf("📡 [%d] in %lu ms %s\n", r.code, (unsigned long)(millis() - r.at), r.body);
+      if (!live) { replayFinished(r.code == 200 || refused); break; }
+      if (r.code == 200) {
+        if (res.indexOf("\"sosTriggered\":true") >= 0) { Serial.println("🆘 Server counted an SOS"); sosLightUntil = millis() + SOS_LIGHT_MS; soundSos(); }
+        else if (res.indexOf("\"voucherUnlocked\":true") >= 0) { Serial.println("🎉 Voucher unlocked!"); soundVoucher(); }
+        else if (res.indexOf("\"duplicate\":true") >= 0) Serial.println("↺ Already stamped just now");
+        else { Serial.println("🗿 Stamp saved"); soundSaved(); }
+      } else if (refused) {
+        soundError();
+      } else {
+        queueTap(uid, r.at);           // no answer: keep it and send it later
+        soundQueued();
+      }
+      break;
+    }
+    case JOB_SOS:
+    case JOB_QUEUED_SOS: {
+      Serial.printf("🆘 [%d] %s\n", r.code, r.body);
+      bool delivered = r.code == 200;
+      if (delivered) { Serial.println("🆘 SOS delivered to the help desk"); sosLightUntil = millis() + SOS_LIGHT_MS; }
+      if (refused) soundError();
+      if (r.kind == JOB_QUEUED_SOS) replayFinished(delivered || refused);
+      else if (!delivered && !refused) queueSos(uid, r.at);
+      break;
+    }
+    case JOB_HEARTBEAT:
+      if (r.code != 200) Serial.printf("💓 heartbeat [%d] %s\n", r.code, r.body);
+      break;
+  }
 }
 
 // ---------------------------------------------------------------- reader
@@ -264,7 +299,7 @@ String readTag() {
 #if USE_PN532
   uint8_t uid[7] = {0};
   uint8_t len = 0;
-  if (!nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &len, 100)) return "";
+  if (!nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &len, 40)) return "";
   String s = "";
   for (uint8_t i = 0; i < len; i++) { if (uid[i] < 0x10) s += "0"; s += String(uid[i], HEX); }
 #else
@@ -297,12 +332,13 @@ void handleTap(const String& uid, bool online) {
     burstCount = 0;
     Serial.println("🆘 SOS: band tapped " + String(SOS_TAPS) + " times");
     sosLightUntil = millis() + SOS_LIGHT_MS;
-    soundSos();
-    if (!online || !sendSos(uid, 0)) queueSos(uid);
+    if (!online || !submitSos(uid, true, millis())) queueSos(uid, millis());
+    soundSos();                        // the request is already on its way while the siren plays
   } else if (n == 1) {
-    // First tap: the normal check-in (stamps once; the server's 60 s cooldown handles later taps)
-    if (!online) { queueTap(uid); soundQueued(); }
-    else if (!sendCheckin(uid, true)) queueTap(uid);
+    // First tap: the normal check-in (stamps once; the server's 60 s cooldown handles later taps).
+    // Beep now, like a bus card reader; the server's answer comes in the background.
+    soundTap();
+    if (!online || !submitCheckin(uid, true, millis())) { queueTap(uid, millis()); soundQueued(); }
   } else {
     soundCount();   // 2nd..4th quick tap: only counted here
   }
@@ -321,7 +357,8 @@ void setup() {
 
   setupReader();
   setupWifi();
-  if (WiFi.status() == WL_CONNECTED) { soundStamp(); sendHeartbeat(); lastHeartbeat = millis(); }
+  NetWorker::begin();
+  if (WiFi.status() == WL_CONNECTED) soundStamp();
   Serial.println("\n👉 Ready. Tap a wish-band! (type \"help\" for Wi-Fi commands)\n");
 }
 
@@ -329,8 +366,12 @@ void loop() {
   handleSerial();
   bool online = ensureWifi();
 
-  // LED: fast strobe after an SOS (and while one waits to be sent), slow blink while offline
+  NetWorker::Reply reply;
+  while (NetWorker::poll(reply)) handleReply(reply);
+
+  // LED: fast strobe after an SOS (and while one waits to be sent), on briefly after a tap, slow blink while offline
   if ((long)(sosLightUntil - millis()) > 0 || sosWaiting()) digitalWrite(LED_PIN, (millis() / 120) % 2);
+  else if ((long)(ledUntil - millis()) > 0) digitalWrite(LED_PIN, HIGH);
   else if (!online) digitalWrite(LED_PIN, (millis() / 500) % 2);
   else if (pendingCount == 0) digitalWrite(LED_PIN, LOW);
 
@@ -340,12 +381,13 @@ void loop() {
     bool newTap = uid != lastUid || millis() - lastSeenAt > LIFT_GAP_MS;
     lastUid = uid;
     if (newTap) handleTap(uid, online);
-    lastSeenAt = millis();   // after handleTap: its sounds and HTTP call must not look like a lift-off
+    lastSeenAt = millis();   // after handleTap: its sounds must not look like a lift-off
   }
 
-  if (online) {
-    if (pendingCount > 0 && millis() - lastFlush > 10000) { lastFlush = millis(); flushQueue(); }
-    if (millis() - lastHeartbeat > HEARTBEAT_MS) { sendHeartbeat(); lastHeartbeat = millis(); }
+  // Queued taps and the keep-warm heartbeat only go out while no live tap waits for the server.
+  if (online && netBusy == 0) {
+    if (pendingCount > 0 && (lastFlush == 0 || millis() - lastFlush > 10000)) replayQueue();
+    else if (NetWorker::lastSentAt == 0 || millis() - NetWorker::lastSentAt > KEEP_WARM_MS) submitHeartbeat();
   }
-  delay(60);
+  delay(10);
 }
