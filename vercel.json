@@ -6,6 +6,10 @@
       "destination": "/api/index.js?__path=$1"
     },
     {
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
       "source": "/admin",
       "destination": "/admin.html"
     },
