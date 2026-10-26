@@ -16,22 +16,28 @@ function broadcast(event, payload) {
   wss.clients.forEach(c => c.readyState === 1 && c.send(msg));
 }
 
-const app = createApp({ dbFile: path.join(__dirname, 'database.json'), broadcast });
+const dbFile = process.env.VERCEL ? path.join('/tmp', 'database.json') : path.join(__dirname, 'database.json');
+const app = createApp({ dbFile, broadcast });
 
 app.use(express.static(PUBLIC_DIR));
 app.get('/admin', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'admin.html')));
 // Tag URLs look like /04DBCE42CA2A81 -> tourist app
 app.get('/:uid', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 
-const server = http.createServer(app);
-wss = new WebSocketServer({ server });
-wss.on('connection', ws => ws.send(JSON.stringify({ event: 'CONNECTED' })));
+// On Vercel the Express preset may pick this file as the entry: hand it the
+// app (no listen, no WebSocket) so every path, including /, gets an answer.
+if (process.env.VERCEL) {
+  module.exports = app;
+} else {
+  const server = http.createServer(app);
+  wss = new WebSocketServer({ server });
+  wss.on('connection', ws => ws.send(JSON.stringify({ event: 'CONNECTED' })));
 
-server.listen(PORT, () => {
-  console.log(`\n🌋 Jeju wish-band running at http://localhost:${PORT}`);
-  console.log(`📱 Tourist app: http://localhost:${PORT}/BEAD_001`);
-  console.log(`🏢 Admin desk:  http://localhost:${PORT}/admin\n`);
-});
+  server.listen(PORT, () => {
+    console.log(`\n🌋 Jeju wish-band running at http://localhost:${PORT}`);
+    console.log(`📱 Tourist app: http://localhost:${PORT}/BEAD_001`);
+    console.log(`🏢 Admin desk:  http://localhost:${PORT}/admin\n`);
+  });
 
-// Lets Vercel's Express preset use this file directly if it picks it as the entry.
-module.exports = server;
+  module.exports = server;
+}
