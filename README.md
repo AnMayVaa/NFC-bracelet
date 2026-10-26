@@ -228,7 +228,9 @@ Each folder is a normal Arduino sketch. Board: **ESP32 Dev Module**, 115200 baud
 - **Phone setup page**: hold **BOOT** while powering on (or type `portal`, or it opens by itself when no known network is found). Join Wi-Fi `WishBand-<station>` with password `wishband123`, then open http://192.168.4.1, pick a network and tap *Connect & remember*.
 - Every network that connects is remembered (up to 5), newest first.
 
-Station sounds (fw 2.3): like a bus card reader, the station beeps the moment it reads a band and asks the server in the background (`net_worker.h`, one kept-open HTTPS connection plus a heartbeat every 20 s so the link and the server stay warm). A second, higher beep = new stamp saved, fanfare = voucher unlocked, just the first beep = already stamped (within 60 s), two quick beeps = offline or no answer (the tap is queued and sent when Wi-Fi returns), low buzz = the server refused it. The LED blinks while offline.
+Station sounds (fw 2.3): like a bus card reader, the station beeps the moment it reads a band and asks the server in the background (`net_worker.h`, one kept-open HTTPS connection plus a heartbeat every 30 s so the link and the server stay warm). A second, higher beep = new stamp saved, fanfare = voucher unlocked, a second short beep at the same pitch = already stamped (within 60 s), two quick beeps = offline or no answer (the tap is queued and sent when Wi-Fi returns), low buzz = the server refused it. Every tap ends with one of these within a few seconds. The LED blinks while offline.
+
+Logic check on a PC (no board needed): `sh firmware/tools/host_test/run.sh` runs every sketch against fake hardware and a scripted server (stamp, duplicate, voucher, refused, no answer, offline queue, 5-tap SOS, admin writes). It needs g++ and does not replace a real ESP32 build.
 
 Stations use a PN532 by default (`#define USE_PN532 1`). To use an MFRC522 instead, set `#define USE_PN532 0` at the top of the sketch.
 

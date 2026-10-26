@@ -6,11 +6,12 @@
 
   What it does (airport / hotel desk)
     1. Staff taps a new wish-band on the PN532.
-    2. The tag gets what the server wants written:
+    2. The ESP32 asks the server what to write (GET /api/admin/write-queue, over the
+       HTTPS link it keeps open, so this is one quick round trip):
          - a custom text/URL queued from the Admin web page, or
          - the default tourist link  <SERVER>/<UID>
-       The desk checks the write queue (GET /api/admin/write-queue) every 3 s in the
-       background, so a tap never waits for the internet.
+       If the server doesn't answer, it writes nothing (a wrong link would be worse
+       than a retry) and gives the low buzz: tap again.
     3. It burns that NDEF record onto the NTAG sticker (skipped if already there),
        reads it back to verify and beeps right away. Then it reports the tap
        (POST /api/admin/scan) in the background; a low buzz a moment later means
@@ -69,10 +70,7 @@ unsigned long lastHeartbeat = 0;
 // Server calls go through the background task in net_worker.h.
 enum { JOB_QUEUE_CHECK = 1, JOB_SCAN, JOB_HEARTBEAT };
 int netBusy = 0;                     // requests handed to the network task, not answered yet
-String webQueued = "";               // custom write queued on the Admin web page (refreshed every 3 s)
-unsigned long lastQueueCheck = 0;
-unsigned long webQueueUsedAt = 0;    // queue answers asked before this are stale
-const unsigned long QUEUE_CHECK_MS = 3000;
+const unsigned long KEEP_WARM_MS = 30000;   // a heartbeat every 30 s keeps the HTTPS link open
 
 const int MAX_CONTENT = 100;         // fits NTAG213 (144 bytes user memory)
 
@@ -205,7 +203,26 @@ bool writeNdef(String content) {
 }
 
 // ---------------------------------------------------------------- tap handling
-// Everything on the tag happens here and the beep comes right after; the server only hears about it later.
+void handleReply(const NetWorker::Reply& r);
+
+// Asks the server, right now, whether the Admin web page queued a custom write.
+// Returns false if it didn't answer in time.
+bool fetchWriteQueue(String& pendingWrite) {
+  if (!submit(JOB_QUEUE_CHECK, "", "/api/admin/write-queue", "")) return false;
+  unsigned long askedAt = millis();
+  NetWorker::Reply r;
+  while (millis() - askedAt < 6000) {
+    if (!NetWorker::poll(r)) { delay(5); continue; }
+    if (r.kind != JOB_QUEUE_CHECK || r.at < askedAt) { handleReply(r); continue; }   // other answers, or a late one
+    netBusy--;
+    if (r.code != 200) return false;
+    pendingWrite = jsonString(r.body, "pendingWrite");
+    return true;
+  }
+  return false;   // its late answer is dropped by handleReply
+}
+
+// The tag is written and checked here and the beep comes right after; the server hears about it in the background.
 void handleTag(const String& uid, uint8_t uidLength) {
   unsigned long startedAt = millis();
   digitalWrite(LED_PIN, HIGH);
@@ -215,7 +232,12 @@ void handleTag(const String& uid, uint8_t uidLength) {
   // 1. What should this tag hold?
   String target = serialQueued;
   bool fromWebQueue = false;
-  if (target.length() == 0 && webQueued.length() > 0) { target = webQueued; fromWebQueue = true; }
+  bool queueKnown = true;            // false = online but the server didn't say what to write
+  if (target.length() == 0 && WiFi.status() == WL_CONNECTED) {
+    String webQueued;
+    queueKnown = fetchWriteQueue(webQueued);
+    if (queueKnown && webQueued.length() > 0) { target = webQueued; fromWebQueue = true; }
+  }
   if (target.length() == 0) target = String(SERVER_URL) + "/" + uid;
 
   // 2. Write it (NTAG stickers have 7-byte UIDs; Mifare fobs are read-only here)
@@ -225,12 +247,13 @@ void handleTag(const String& uid, uint8_t uidLength) {
     verified = readNtagContent();
     if (verified == target) {
       Serial.println("✔️ Tag already holds the right link, no write needed.");
+    } else if (!queueKnown) {
+      Serial.println("⚠️ Server didn't answer, so nothing was written: tap again");
     } else {
       Serial.printf("✍️ Writing: %s\n", target.c_str());
       wrote = writeNdef(target);
       Serial.println(wrote ? "✅ Written" : "⚠️ Write failed, tap again");
       if (wrote && serialQueued.length()) serialQueued = "";
-      if (wrote && fromWebQueue) { webQueued = ""; webQueueUsedAt = millis(); }
       verified = readNtagContent();                  // 3. verify
     }
   } else {
@@ -238,7 +261,7 @@ void handleTag(const String& uid, uint8_t uidLength) {
   }
   Serial.printf("📖 Tag says: %s\n", verified.c_str());
 
-  bool ok = uidLength != 7 || verified == target;
+  bool ok = queueKnown && (uidLength != 7 || verified == target);
   ok ? soundOk() : soundError();
   Serial.printf("⏱️  Tag done in %lu ms\n", millis() - startedAt);
 
@@ -256,19 +279,12 @@ void handleTag(const String& uid, uint8_t uidLength) {
 
 void handleReply(const NetWorker::Reply& r) {
   netBusy--;
-  String res = r.body;
   switch (r.kind) {
     case JOB_QUEUE_CHECK:
-      if (r.code == 200 && r.at >= webQueueUsedAt) {
-        String next = jsonString(res, "pendingWrite");
-        if (next != webQueued && next.length()) Serial.printf("✍️ Admin web queued: \"%s\" for the next tag\n", next.c_str());
-        webQueued = next;
-      }
-      break;
+      break;                                         // answered too late for its tap: nothing to do
     case JOB_SCAN:
       Serial.printf("📡 Admin web [%d] in %lu ms for %s\n", r.code, (unsigned long)(millis() - r.at), r.uid);
-      if (r.code == 200) { webQueued = jsonString(res, "pendingWrite"); webQueueUsedAt = millis(); }
-      else soundError();                             // the web page didn't get it: staff should tap again
+      if (r.code != 200) soundError();               // the web page didn't get it: staff should tap again
       break;
     case JOB_HEARTBEAT:
       if (r.code != 200) Serial.printf("💓 heartbeat [%d] %s\n", r.code, r.body);
@@ -321,18 +337,12 @@ void loop() {
   NetWorker::Reply reply;
   while (NetWorker::poll(reply)) handleReply(reply);
 
-  // Background calls only while nothing else waits for the server. The queue check every 3 s also
-  // keeps the HTTPS link open, so a tap's report doesn't pay for a new handshake.
-  if (online && netBusy == 0) {
-    if (lastHeartbeat == 0 || millis() - lastHeartbeat > 60000) {
-      lastHeartbeat = millis();
-      submit(JOB_HEARTBEAT, "", "/api/stations/heartbeat",
-             String("{\"station\":\"admin\",\"fw\":\"" FW_VERSION "\",\"ssid\":\"") + WiFi.SSID() +
-             "\",\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}");
-    } else if (millis() - lastQueueCheck > QUEUE_CHECK_MS) {
-      lastQueueCheck = millis();
-      submit(JOB_QUEUE_CHECK, "", "/api/admin/write-queue", "");
-    }
+  // Heartbeat while idle: keeps the HTTPS link open, so a tap doesn't pay for a new handshake.
+  if (online && netBusy == 0 && (lastHeartbeat == 0 || millis() - lastHeartbeat > KEEP_WARM_MS)) {
+    lastHeartbeat = millis();
+    submit(JOB_HEARTBEAT, "", "/api/stations/heartbeat",
+           String("{\"station\":\"admin\",\"fw\":\"" FW_VERSION "\",\"ssid\":\"") + WiFi.SSID() +
+           "\",\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}");
   }
 
   uint8_t uid[7] = {0};

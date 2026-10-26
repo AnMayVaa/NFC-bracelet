@@ -13,7 +13,9 @@
     Band read        : one beep right away
     New stamp        : a second, higher beep once the server has saved it
     Voucher unlocked : four-note fanfare
-    Already stamped  : just the first beep (tapped again within 60 s)
+    Already stamped  : a second, short beep at the same pitch (tapped again within 60 s)
+    (only the first beep and nothing else = the server hasn't answered yet; within a few
+     seconds you always get one of the sounds above or the two quick beeps below)
     Offline / no answer : two quick beeps (tap is queued and sent when Wi-Fi is back)
     Error            : low buzz (the server refused the tap)
     Counting taps    : one short low tick (2nd to 4th quick tap of the same band)
@@ -110,7 +112,7 @@ unsigned long lastFlush = 0;                    // when a queued item was last t
 String replayItem = "";                         // queued item that is out with the network task
 int netBusy = 0;                                // requests handed to the network task, not answered yet
 unsigned long ledUntil = 0;                     // LED stays on until then after a tap
-const unsigned long KEEP_WARM_MS = 20000;       // a heartbeat every 20 s keeps the link open and the server warm
+const unsigned long KEEP_WARM_MS = 30000;       // a heartbeat every 30 s keeps the link open and the server warm
 
 // ---------------------------------------------------------------- sounds
 unsigned long toneFreeAt = 0;                   // when the instant tap beep has finished
@@ -123,6 +125,7 @@ void beep(int freq, int ms) {
 // Played the moment a band is read, before any network call. Doesn't wait for the sound to end.
 void soundTap()     { digitalWrite(LED_PIN, HIGH); ledUntil = millis() + 300; tone(BUZZER_PIN, 2200, 90); toneFreeAt = millis() + 110; }
 void soundSaved()   { digitalWrite(LED_PIN, HIGH); beep(2900, 150); digitalWrite(LED_PIN, LOW); }
+void soundRepeat()  { digitalWrite(LED_PIN, HIGH); beep(2600, 50); digitalWrite(LED_PIN, LOW); }
 
 void soundStamp()   { digitalWrite(LED_PIN, HIGH); beep(2200, 110); beep(2900, 170); digitalWrite(LED_PIN, LOW); }
 void soundVoucher() { digitalWrite(LED_PIN, HIGH); beep(2000, 100); beep(2400, 100); beep(2800, 100); beep(3400, 280); digitalWrite(LED_PIN, LOW); }
@@ -238,7 +241,7 @@ void handleReply(const NetWorker::Reply& r) {
       if (r.code == 200) {
         if (res.indexOf("\"sosTriggered\":true") >= 0) { Serial.println("🆘 Server counted an SOS"); sosLightUntil = millis() + SOS_LIGHT_MS; soundSos(); }
         else if (res.indexOf("\"voucherUnlocked\":true") >= 0) { Serial.println("🎉 Voucher unlocked!"); soundVoucher(); }
-        else if (res.indexOf("\"duplicate\":true") >= 0) Serial.println("↺ Already stamped just now");
+        else if (res.indexOf("\"duplicate\":true") >= 0 && !r.retried) { Serial.println("↺ Already stamped just now"); soundRepeat(); }
         else { Serial.println("🗿 Stamp saved"); soundSaved(); }
       } else if (refused) {
         soundError();

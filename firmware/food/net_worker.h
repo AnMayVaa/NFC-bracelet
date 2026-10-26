@@ -36,6 +36,7 @@ struct Reply {
   uint32_t at;
   char uid[24];
   int code;              // HTTP status, or < 0 for no answer (offline, timeout)
+  bool retried;          // sent a second time on a fresh link: the first may have reached the server
   char body[400];
 };
 
@@ -70,10 +71,13 @@ void task(void*) {
     if (xQueueReceive(jobs, &j, portMAX_DELAY) != pdTRUE) continue;
     int code = -1;
     res = "offline";
+    r.retried = false;
     if (WiFi.status() == WL_CONNECTED) {
       bool reused = tls.connected() || plain.connected();
       code = sendOnce(j, res);
-      if (code < 0 && reused) code = sendOnce(j, res);   // the server had closed the idle link
+      // The server had closed the idle link. A read timeout is not retried: the server may still be working on it.
+      r.retried = code < 0 && reused && code != HTTPC_ERROR_READ_TIMEOUT;
+      if (r.retried) code = sendOnce(j, res);
     }
     r.kind = j.kind;
     r.at = j.at;
