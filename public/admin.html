@@ -2,7 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FBF5E9">
+  <script>
+    // Same theme as the tourist app on this device; follows the system setting until one is picked
+    (function () {
+      var dark = window.matchMedia && matchMedia('(prefers-color-scheme: dark)');
+      function apply() {
+        var saved = null; try { saved = localStorage.getItem('wb-theme'); } catch (_) {}
+        var th = saved === 'dark' || saved === 'light' ? saved : (dark && dark.matches ? 'dark' : 'light');
+        document.documentElement.dataset.theme = th;
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', th === 'dark' ? '#14171B' : '#FBF5E9');
+      }
+      apply();
+      if (dark && dark.addEventListener) dark.addEventListener('change', apply);
+    })();
+  </script>
   <title>Jeju wish-band · Admin Desk</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -137,7 +152,7 @@
           <input class="input" id="search" placeholder="Search UID" style="max-width:220px;padding:8px 12px">
         </div>
         <div class="table-wrap">
-          <table>
+          <table id="bandTable">
             <thead><tr><th>Tourist</th><th>UID</th><th>Stamps</th><th>Voucher</th><th>Last seen</th><th></th></tr></thead>
             <tbody id="rows"></tbody>
           </table>

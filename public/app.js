@@ -1284,6 +1284,7 @@ function bindEvents() {
   $('#btnLang').addEventListener('click', () => openSheet('#sheetLang'));
   $('#langSeg').addEventListener('click', e => { if (e.target.closest('[data-open-lang]')) openSheet('#sheetLang'); });
   $('#btnTheme').addEventListener('click', () => changeTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+  document.addEventListener('wb-theme', renderSettings);
 
   // First-use questions
   $('#obInterests').addEventListener('click', e => {

@@ -1111,13 +1111,25 @@ function langFromCountry(iso) {
   return true;
 }
 
-// Theme: light by default, remembered per device
-function currentTheme() {
-  try { return localStorage.getItem('wb-theme') === 'dark' ? 'dark' : 'light'; } catch (_) { return 'light'; }
+// Theme: follows the phone's light/dark setting until the tourist picks one, then remembered per device
+const systemDark = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)') : null;
+function savedTheme() {
+  try { const v = localStorage.getItem('wb-theme'); return v === 'dark' || v === 'light' ? v : null; } catch (_) { return null; }
 }
-function setTheme(theme) {
+function currentTheme() {
+  return savedTheme() || (systemDark?.matches ? 'dark' : 'light');
+}
+function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  try { localStorage.setItem('wb-theme', theme); } catch (_) {}
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#15181C' : '#7CC3E0');
 }
-document.documentElement.dataset.theme = currentTheme();
+function setTheme(theme) {
+  applyTheme(theme);
+  try { localStorage.setItem('wb-theme', theme); } catch (_) {}
+}
+applyTheme(currentTheme());
+systemDark?.addEventListener?.('change', () => {
+  if (savedTheme()) return;
+  applyTheme(currentTheme());
+  document.dispatchEvent(new Event('wb-theme'));
+});
