@@ -136,7 +136,7 @@ function renderSos(alerts) {
       <div style="font-size:.84rem;margin-top:6px">${esc(a.note)}</div>
       <div style="font-size:.8rem;margin-top:6px">${map}</div>
       ${a.tourist.wiped ? '<div class="muted" style="font-size:.78rem;margin-top:4px">🔒 Case closed, personal details removed</div>'
-        : a.tourist.fromPhone === false || (!a.tourist.emergencyContact && a.trigger === 'band') ? '<div class="muted" style="font-size:.78rem;margin-top:4px">🔒 No profile: it stays on the tourist\'s phone. Go to the location shown.</div>'
+        : a.tourist.fromPhone === false || (!a.tourist.emergencyContact && a.trigger === 'band') ? '<div class="muted" style="font-size:.78rem;margin-top:4px">No profile saved for this band. Go to the location shown.</div>'
         : `<div style="font-size:.8rem;margin-top:4px">☎️ ${esc(a.tourist.emergencyContact || 'no contact')}${a.tourist.language ? ` · 🗣️ ${esc(a.tourist.language)}` : ''}${a.tourist.dietary ? ` · 🍽️ ${esc(a.tourist.dietary)}` : ''}</div>`}
       ${a.tourist.medicalNotes || (a.tourist.mobility && a.tourist.mobility !== 'none') ? `<div style="font-size:.8rem;margin-top:4px;color:var(--sos);font-weight:800">🩺 ${esc([a.tourist.mobility === 'wheelchair' ? 'Wheelchair user' : a.tourist.mobility === 'limited' ? 'Short walks only' : '', a.tourist.medicalNotes].filter(Boolean).join(' · '))}</div>` : ''}
       ${a.responder ? `<div style="font-size:.8rem;margin-top:4px">🚑 ${esc(a.responder)}${a.etaMinutes ? `, ETA ${a.etaMinutes} min` : ''}</div>` : ''}
@@ -160,7 +160,7 @@ function renderStations(list) {
 function renderRows(tourists) {
   const q = $('#search').value.trim().toLowerCase();
   const list = tourists
-    .filter(t => !q || t.uid.toLowerCase().includes(q))
+    .filter(t => !q || t.uid.toLowerCase().includes(q) || (t.name || '').toLowerCase().includes(q))
     .sort((a, b) => (b.lastCheckin?.timestamp || b.registeredAt || '').localeCompare(a.lastCheckin?.timestamp || a.registeredAt || ''));
   $('#bandCount').textContent = tourists.length;
   if (!list.length) {
@@ -173,7 +173,7 @@ function renderRows(tourists) {
     const vChip = { LOCKED: '<span class="chip">🔒 Locked</span>', UNLOCKED: '<span class="chip tan">🎁 Ready</span>', REDEEMED: '<span class="chip leaf">✅ Used</span>', EXPIRED: '<span class="chip">Expired</span>' }[v];
     const flash = flashed.has(t.uid) ? 'flash' : '';
     return `<tr class="${flash}">
-      <td><b>${esc(bandName(t.uid))}</b><div class="muted" style="font-size:.74rem">${t.depositPaid === false ? 'No deposit' : 'Deposit held'} · ${(t.checkinHistory || []).length} taps</div></td>
+      <td><b>${esc(t.name || bandName(t.uid))}</b><div class="muted" style="font-size:.74rem">${t.onboardedAt ? `${esc(t.countryCode || '')}${t.dietary && t.dietary !== 'None' ? ' · ' + esc(t.dietary) : ''}${t.emergencyContact ? ' · ☎️ ' + esc(t.emergencyContact) : ''}` : 'Not set up yet'} · ${(t.checkinHistory || []).length} taps</div></td>
       <td class="mono" style="font-size:.78rem">${esc(t.uid)}</td>
       <td class="mini-stamps">${stamps}</td>
       <td>${vChip}</td>
@@ -202,11 +202,11 @@ function renderStorage(kind) {
 function renderSimPicker(tourists) {
   const sel = $('#simUid');
   const current = sel.value;
-  const sig = tourists.map(t => t.uid).join('|');
+  const sig = tourists.map(t => t.uid + (t.name || '')).join('|');
   if (sel.dataset.sig !== sig) {
     sel.dataset.sig = sig;
     sel.innerHTML = tourists.length
-      ? [...tourists].sort((a, b) => a.uid.localeCompare(b.uid)).map(t => `<option value="${esc(t.uid)}">${esc(t.uid)}${status?.demoNotes?.[t.uid] ? ' · ' + esc(status.demoNotes[t.uid]) : ''}</option>`).join('')
+      ? [...tourists].sort((a, b) => a.uid.localeCompare(b.uid)).map(t => `<option value="${esc(t.uid)}">${esc(t.uid)}${t.name ? ' · ' + esc(t.name) : ''}${status?.demoNotes?.[t.uid] ? ' · ' + esc(status.demoNotes[t.uid]) : ''}</option>`).join('')
       : '<option value="">No wish-bands yet</option>';
     if (tourists.some(t => t.uid === current)) sel.value = current;
   }
@@ -282,7 +282,7 @@ function beep() {
 }
 
 // ------------------------------------------------------------------ form
-// Profiles live on the tourist's phone, so the desk only knows the band.
+// Shown until the tourist sets up a profile on their phone.
 const bandName = uid => `Wish-band ${uid.length > 8 ? uid.slice(0, 8) + '…' : uid}`;
 
 function fillForm(uid) {
