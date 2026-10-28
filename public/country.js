@@ -14,7 +14,10 @@
     BO: 'es', DO: 'es', HN: 'es', PY: 'es', SV: 'es', NI: 'es', CR: 'es', PA: 'es', UY: 'es', GQ: 'es',
     IT: 'it', SM: 'it', VA: 'it',
     PT: 'pt', BR: 'pt', AO: 'pt', MZ: 'pt', CV: 'pt', GW: 'pt', ST: 'pt', TL: 'pt',
-    RU: 'ru', BY: 'ru', KZ: 'ru', KG: 'ru'
+    RU: 'ru', BY: 'ru', KZ: 'ru', KG: 'ru',
+    VN: 'vi',
+    ID: 'id',
+    MY: 'ms', BN: 'ms'
   };
 
   // A sample national number (no trunk 0) per country; the gaps are the grouping the

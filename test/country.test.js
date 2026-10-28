@@ -7,6 +7,9 @@ const { I18N } = require('./helpers/i18n');
 test('nationality picks a translated app language, else English', () => {
   assert.strictEqual(langForCountry('KR'), 'ko');
   assert.strictEqual(langForCountry('BR'), 'pt');
+  assert.strictEqual(langForCountry('VN'), 'vi');
+  assert.strictEqual(langForCountry('ID'), 'id');
+  assert.strictEqual(langForCountry('MY'), 'ms');
   assert.strictEqual(langForCountry('GB'), 'en');
   assert.strictEqual(langForCountry('XX'), 'en');
   for (const [iso, lang] of Object.entries(COUNTRY_LANG)) {

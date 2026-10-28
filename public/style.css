@@ -403,8 +403,13 @@ tr.flash td { animation: flash 1.2s; }
 .modal img { width: 220px; height: 220px; margin: 12px auto; display: block; border-radius: 12px; background: #fff; padding: 8px; }
 
 /* ---------------- v3: fewer steps ---------------- */
-.tabs-cats { display: grid; grid-template-columns: repeat(4, 1fr); overflow: visible; }
-.tabs-cats button { padding-left: 4px; padding-right: 4px; white-space: nowrap; text-align: center; }
+/* Four equal tabs; a longer label wraps between words (the emoji goes on top) instead of spilling off screen */
+.tabs-cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; }
+.tabs-cats button { padding-left: 4px; padding-right: 4px; text-align: center; line-height: 1.2; }
+.reasons .chip { white-space: normal; max-width: 100%; }
+#meDeposit { white-space: normal; text-align: right; min-width: 0; }
+.stamps, .hotlines { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stamp .name, .stamp .kind { overflow-wrap: anywhere; }
 .route-strip {
   width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
   background: var(--field); border: 2px solid var(--line); border-radius: 18px;
@@ -829,3 +834,6 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible), .rec:focus:not(:f
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* folding-phone cover screens: longer tab words (Makanan, Aktivitas) still fit */
+@media (max-width: 300px) { .tabs-cats button { font-size: .7rem; padding-left: 1px; padding-right: 1px; } }
