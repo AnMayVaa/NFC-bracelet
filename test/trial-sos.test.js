@@ -33,7 +33,7 @@ test('rapid taps are counted per band and station inside the window', () => {
   assert.strictEqual(core.countRapidTap(t, 'food', now + 33000), core.SOS_TAPS);
 });
 
-test('band SOS is pinned to the station; the server has no profile to add', () => {
+test('band SOS is pinned to the station; a band with no profile shows its label', () => {
   const t = core.newGuest('RT2');
   const a = core.newSosAlert({ uid: t.uid, tourist: t, trigger: 'band', station: 'activity' });
   const st = core.resolveStation('activity');
@@ -66,7 +66,7 @@ test('one tap stamps once with no SOS; five quick taps raise one SOS', async () 
     const a = st.sosAlerts[0];
     assert.strictEqual(a.trigger, 'band');
     assert.strictEqual(a.stationId, 'food');
-    assert.strictEqual(a.tourist.medicalNotes, '', 'profile stays on the phone');
+    assert.strictEqual(a.tourist.medicalNotes, 'Peanut allergy', 'band SOS carries the saved profile');
 
     // More taps while help is on the way: same alert, no second one
     for (let i = 0; i < core.SOS_TAPS; i++) r = await post('/api/checkin', { uid: 'TAP1', station: 'food' });

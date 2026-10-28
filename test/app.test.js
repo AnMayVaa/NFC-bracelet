@@ -74,20 +74,19 @@ test('demo control: seed story, play a journey, clear', async () => {
   }
 });
 
-test('profiles stay on the phone: register saves nothing personal', async () => {
+test('profile is saved with the band and kept out of public views', async () => {
   const s = await start();
   const base = `http://127.0.0.1:${s.address().port}`;
   const post = (p, body) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   try {
     const r = await post('/api/register', { uid: 'INTL1', name: 'Nguyễn Văn An', countryCode: 'VN', emergencyContact: '+84 912345678', medicalNotes: 'Asthma', interests: ['food'] });
-    const j = await r.json();
     assert.strictEqual(r.status, 200);
-    assert.strictEqual(j.storedOnServer, false);
     const band = await (await fetch(`${base}/api/tourist/INTL1`)).json();
-    for (const k of ['name', 'country', 'countryCode', 'emergencyContact', 'medicalNotes', 'interests', 'mobility', 'dietary'])
-      assert.ok(!(k in band), `${k} must not be on the server`);
-    const st = await (await fetch(`${base}/api/admin/status`)).json();
-    assert.ok(!JSON.stringify(st.tourists).includes('Nguy'));
+    assert.strictEqual(band.name, 'Nguyễn Văn An');
+    assert.deepStrictEqual(band.interests, ['food']);
+    assert.ok(band.onboardedAt);
+    const list = await (await fetch(`${base}/api/tourists`)).json();
+    assert.ok(!JSON.stringify(list).includes('Nguy'), 'public band list has no profiles');
     assert.ok(!(await post('/api/location', { uid: 'INTL1', lat: 33.4, lng: 126.5 })).ok, 'phone GPS is not stored');
     const cfg = await (await fetch(`${base}/api/config`)).json();
     assert.strictEqual(cfg.dialCodes.TH, '66');
@@ -146,20 +145,24 @@ test('first use: the phone sends interests, diet and mobility with each pick req
   }
 });
 
-test('a band set up on one phone tells a second phone, without keeping the profile', async () => {
+test('a profile saved on one phone loads on a second phone, and can be deleted', async () => {
   const s = await start();
   const base = `http://127.0.0.1:${s.address().port}`;
-  const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+  const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json());
   try {
-    assert.strictEqual((await (await fetch(`${base}/api/tourist/SETUP1`)).json()).setupAt, undefined);
-    const first = await (await post('/api/tourist/SETUP1/setup', { name: 'Mina', emergencyContact: '+82 10 1234 5678' })).json();
-    assert.ok(first.setupAt);
-    const again = await (await post('/api/tourist/SETUP1/setup', {})).json();
-    assert.strictEqual(again.setupAt, first.setupAt);
+    assert.strictEqual((await (await fetch(`${base}/api/tourist/SETUP1`)).json()).onboardedAt, undefined);
+    const saved = await post('/api/tourist/SETUP1/profile', { name: 'Mina', emergencyContact: '+82 10 1234 5678', interests: ['food', 7], mobility: 'fly', stamps: { food: true } });
+    assert.ok(saved.tourist.onboardedAt);
     const band = await (await fetch(`${base}/api/tourist/SETUP1`)).json();
-    assert.strictEqual(band.setupAt, first.setupAt);
-    assert.strictEqual(band.name, undefined);
-    assert.strictEqual(band.emergencyContact, undefined);
+    assert.strictEqual(band.name, 'Mina');
+    assert.strictEqual(band.emergencyContact, '+82 10 1234 5678');
+    assert.deepStrictEqual(band.interests, ['food']);
+    assert.strictEqual(band.mobility, 'none');
+    assert.strictEqual(band.stamps.food, false, 'only profile fields are taken');
+    await post('/api/tourist/SETUP1/profile/delete', {});
+    const after = await (await fetch(`${base}/api/tourist/SETUP1`)).json();
+    assert.strictEqual(after.name, undefined);
+    assert.strictEqual(after.onboardedAt, undefined);
   } finally {
     s.close();
   }
