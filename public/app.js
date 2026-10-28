@@ -600,6 +600,75 @@ function sosCard() {
   return out;
 }
 
+// ------------------------------------------------------------------ same band, another phone
+// The server only remembers that the band was set up (a time, no details), so a second phone skips
+// the setup screens. The profile itself moves phone to phone inside the link's #fragment, which
+// browsers never send to a server.
+function markSetUp() {
+  if (state.tourist?.setupAt) return;
+  api(`/api/tourist/${encodeURIComponent(state.uid)}/setup`, {})
+    .then(r => { if (state.tourist) state.tourist.setupAt = r.setupAt; }).catch(() => {});
+}
+
+function profileLink() {
+  const p = myProfile();
+  const out = {};
+  for (const k of PROFILE_KEYS) if (p[k] !== undefined && p[k] !== null && p[k] !== '') out[k] = p[k];
+  let bin = '';
+  new TextEncoder().encode(JSON.stringify(out)).forEach(b => { bin += String.fromCharCode(b); });
+  const code = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return `${location.origin}/${encodeURIComponent(state.uid)}#p=${code}`;
+}
+
+// Opened from a "Copy to another phone" code: save the profile here and drop it from the address bar.
+function takeProfileFromLink() {
+  const m = location.hash.match(/^#p=([\w-]+)$/);
+  if (!m) return null;
+  history.replaceState(null, '', location.pathname + location.search);
+  try {
+    const bin = atob(m[1].replace(/-/g, '+').replace(/_/g, '/'));
+    const p = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
+    const clean = {};
+    for (const k of PROFILE_KEYS) {
+      if (k === 'interests') { if (Array.isArray(p[k])) clean[k] = p[k].filter(x => typeof x === 'string').slice(0, 20); }
+      else if (typeof p[k] === 'string') clean[k] = p[k].slice(0, 500);
+    }
+    if (!Object.keys(clean).length) throw new Error('empty');
+    clean.onboardedAt = clean.onboardedAt || new Date().toISOString();
+    saveMyProfile(clean);
+    return 'good';
+  } catch (_) { return 'bad'; }
+}
+
+function openCopy() {
+  if (!myProfile().onboardedAt) return toast(t('copy.none'), 'warn');
+  const link = profileLink();
+  try {
+    const qr = qrcode(0, 'L');
+    qr.addData(link);
+    qr.make();
+    $('#copyQr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+  } catch (_) { $('#copyQr').innerHTML = `<span class="muted">${esc(t('copy.noQr'))}</span>`; }
+  $('#btnCopyShare').classList.toggle('hidden', !navigator.share);
+  applyI18n($('#sheetCopy'));
+  openSheet('#sheetCopy');
+}
+
+async function copyLink() {
+  try { await navigator.clipboard.writeText(profileLink()); toast(t('copy.copied'), 'good'); }
+  catch (_) { prompt(t('copy.link'), profileLink()); }
+}
+
+function shareLink() {
+  navigator.share?.({ title: 'Jeju wish-band', url: profileLink() }).catch(() => {});
+}
+
+// Band set up on another phone and nothing saved on this one.
+function showNewPhone() {
+  applyI18n($('#sheetNewPhone'));
+  openSheet('#sheetNewPhone');
+}
+
 // ------------------------------------------------------------------ data loading
 async function loadTourist({ celebrate = true } = {}) {
   const before = state.tourist;
@@ -714,6 +783,7 @@ async function onboardNext() {
       emergencyRelation: $('#obSosRel').value,
       onboardedAt: state.tourist.onboardedAt || new Date().toISOString()
     });
+    markSetUp();
     $('#onboard').classList.add('hidden');
     document.body.classList.remove('no-scroll');
     renderProfile();
@@ -1121,7 +1191,8 @@ function forgetMe() {
   closeSheets();
   renderProfile();
   toast(t('privacy.gone'), 'good');
-  showOnboarding();
+  if (state.tourist.setupAt) showNewPhone();
+  else showOnboarding();
 }
 
 async function saveProfile() {
@@ -1348,6 +1419,13 @@ function bindEvents() {
 
   $('#btnEdit').addEventListener('click', openEdit);
   $('#btnForget')?.addEventListener('click', forgetMe);
+  $('#btnCopyOpen').addEventListener('click', openCopy);
+  $('#btnCopyLink').addEventListener('click', copyLink);
+  $('#btnCopyShare').addEventListener('click', shareLink);
+  $('#btnNewPhoneSkip').addEventListener('click', closeSheets);
+  // A copy link opened in a tab that already shows this band: load again so the boot code reads it.
+  window.addEventListener('hashchange', () => { if (location.hash.startsWith('#p=')) location.reload(); });
+  $('#btnNewPhoneFill').addEventListener('click', () => { closeSheets(); showOnboarding(); });
   $('#btnSave').addEventListener('click', saveProfile);
   $('#dietPicks').addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.classList.toggle('on'); });
   // Picking a nationality also sets the phone country code when the number is still empty
@@ -1394,11 +1472,19 @@ function bindEvents() {
   initPickers();
   try {
     state.config = await api('/api/config');
+    const copied = takeProfileFromLink();
+    state.tourist = null;
     await loadTourist({ celebrate: false });
     if (langFromCountry(state.tourist.countryCode)) rerenderAll();
     renderTapTip();
-    if (!state.tourist.onboardedAt) showOnboarding();
-    else maybeAskTrial();
+    if (copied) toast(t(copied === 'good' ? 'copy.done' : 'copy.bad'), copied === 'good' ? 'good' : 'warn');
+    if (state.tourist.onboardedAt) {
+      markSetUp();   // bands set up before the server kept this
+      maybeAskTrial();
+    } else if (state.tourist.setupAt) {
+      // Asked once per phone; the Me tab can copy or fill the profile any time after.
+      if (!storeGet(`wb-new-phone:${state.uid}`)) { storeSet(`wb-new-phone:${state.uid}`, '1'); showNewPhone(); }
+    } else showOnboarding();
     renderToday();
     await loadRecs();
     loadRoute();

@@ -215,7 +215,10 @@
       <div class="card info-tile wide privacy-card">
         <div class="lbl" data-i18n="privacy.title">🔒 Saved only on this phone</div>
         <p class="muted" style="font-size:.82rem;margin:4px 0 10px" data-i18n="privacy.body">Your name, nationality, diet, health notes, interests and emergency contact stay in this phone's browser. The wish-band server only keeps your stamps, voucher and the stations you tapped. If you send an SOS, the help desk sees your details until the case is closed.</p>
-        <button class="btn ghost small" id="btnForget" data-i18n="privacy.forget">🗑️ Delete my profile from this phone</button>
+        <div class="trial-acts">
+          <button class="btn small" id="btnCopyOpen" data-i18n="copy.btn">📲 Copy to another phone</button>
+          <button class="btn ghost small" id="btnForget" data-i18n="privacy.forget">🗑️ Delete my profile from this phone</button>
+        </div>
       </div>
 
       <div class="card trial-card hidden" id="meTrial"></div>
@@ -382,6 +385,35 @@
   </div>
 </div>
 
+<div class="sheet-backdrop" id="sheetCopy">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2 data-i18n="copy.title">📲 Copy to another phone</h2>
+    <p class="muted small-p" data-i18n="copy.sub">Scan this with the other phone's camera. Your profile goes straight from this screen to that phone. The wish-band server never sees it.</p>
+    <div class="copy-qr" id="copyQr"></div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn ghost" style="flex:1" id="btnCopyLink" data-i18n="copy.link">🔗 Copy link</button>
+      <button class="btn" style="flex:1" id="btnCopyShare" data-i18n="copy.share">Share</button>
+    </div>
+    <p class="muted small-p" style="margin-top:10px" data-i18n="copy.warn">The link holds your emergency contact and health notes. Only send it to yourself.</p>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="sheetNewPhone">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2 data-i18n="newPhone.title">👋 This wish-band is already set up</h2>
+    <p class="muted small-p" data-i18n="newPhone.sub">Your stamps and voucher are here. Your profile stays on the phone you set it up on, because we don't keep it on our server.</p>
+    <div class="trial-terms">
+      <div><b data-i18n="newPhone.copyTitle">Bring your profile here</b><p data-i18n="newPhone.copy">On your other phone open Me, tap "Copy to another phone" and scan the code with this phone's camera.</p></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn ghost" style="flex:1" id="btnNewPhoneSkip" data-i18n="newPhone.skip">Use without it</button>
+      <button class="btn" style="flex:1" id="btnNewPhoneFill" data-i18n="newPhone.fill">Fill in here</button>
+    </div>
+  </div>
+</div>
+
 <div class="sheet-backdrop" id="sheetTrial">
   <div class="sheet">
     <div class="grab"></div>
@@ -438,6 +470,7 @@
 <div class="toast-wrap" id="toasts"></div>
 
 <script src="/vendor/leaflet/leaflet.js"></script>
+<script src="/vendor/qrcode/qrcode.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

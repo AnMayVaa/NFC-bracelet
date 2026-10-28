@@ -145,3 +145,22 @@ test('first use: the phone sends interests, diet and mobility with each pick req
     s.close();
   }
 });
+
+test('a band set up on one phone tells a second phone, without keeping the profile', async () => {
+  const s = await start();
+  const base = `http://127.0.0.1:${s.address().port}`;
+  const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+  try {
+    assert.strictEqual((await (await fetch(`${base}/api/tourist/SETUP1`)).json()).setupAt, undefined);
+    const first = await (await post('/api/tourist/SETUP1/setup', { name: 'Mina', emergencyContact: '+82 10 1234 5678' })).json();
+    assert.ok(first.setupAt);
+    const again = await (await post('/api/tourist/SETUP1/setup', {})).json();
+    assert.strictEqual(again.setupAt, first.setupAt);
+    const band = await (await fetch(`${base}/api/tourist/SETUP1`)).json();
+    assert.strictEqual(band.setupAt, first.setupAt);
+    assert.strictEqual(band.name, undefined);
+    assert.strictEqual(band.emergencyContact, undefined);
+  } finally {
+    s.close();
+  }
+});
